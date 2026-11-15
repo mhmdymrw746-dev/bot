@@ -2,54 +2,34 @@ from flask import Flask
 from threading import Thread
 import telebot
 import os
+import requests
 
 TOKEN = os.environ.get("9005250007:AAEumlmOgX2uQKyfTGdJrG6Nvq3RU657b4Q")
-bot = telebot.TeleBot(9005250007:AAEumlmOgX2uQKyfTGdJrG6Nvq3RU657b4Q)
+bot = telebot.TeleBot(
+    9005250007:AAEumlmOgX2uQKyfTGdJrG6Nvq3RU657b4Q)
 app = Flask(__name__)
-
-waiting = None
-pairs = {}
 
 @app.route('/')
 def home():
-    return "Bot is Live!"
+    return "AI Bot is Live!"
+
+def ask_ai(text):
+    try:
+        url = f"https://text.pollinations.ai/{text}"
+        r = requests.get(url, timeout=20)
+        return r.text
+    except Exception as e:
+        return "حصل مشكلة ثواني وجرب تاني 😅"
 
 @bot.message_handler(commands=['start'])
 def start(m):
-    bot.send_message(m.chat.id, "اهلا بيك 😎\nارسل رسالتك وصاحب البوت هيرد عليك\nدوس /play عشان تكلم حد عشوائي")
-
-@bot.message_handler(commands=['play'])
-def play(m):
-    global waiting
-    user = m.chat.id
-    if user in pairs:
-        return
-    if waiting is None or waiting == user:
-        waiting = user
-        bot.send_message(user, "بدورلك على حد...")
-    else:
-        partner = waiting
-        waiting = None
-        pairs[user] = partner
-        pairs[partner] = user
-        bot.send_message(user, "لقيتلك حد! ابدأ كلام")
-        bot.send_message(partner, "لقيتلك حد! ابدأ كلام")
-
-@bot.message_handler(commands=['stop'])
-def stop(m):
-    user = m.chat.id
-    if user in pairs:
-        partner = pairs[user]
-        del pairs[user]
-        del pairs[partner]
-        bot.send_message(user, "وقفت")
-        bot.send_message(partner, "الطرف التاني خرج")
+    bot.reply_to(m, "اهلا 🤖 انا بوت ذكاء اصطناعي\nاسألني اي حاجة وهرد عليك فورا!")
 
 @bot.message_handler(func=lambda m: True)
 def chat(m):
-    user = m.chat.id
-    if user in pairs:
-        bot.send_message(pairs[user], m.text)
+    bot.send_chat_action(m.chat.id, 'typing')
+    answer = ask_ai(m.text)
+    bot.send_message(m.chat.id, answer)
 
 def run_bot():
     bot.infinity_polling()
