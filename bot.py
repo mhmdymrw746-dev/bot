@@ -3,8 +3,8 @@ from threading import Thread
 import telebot
 import os
 
-TOKEN = os.environ.get("TOKEN")
-bot = telebot.TeleBot(TOKEN)
+TOKEN = os.environ.get("9005250007:AAEumlmOgX2uQKyfTGdJrG6Nvq3RU657b4Q")
+bot = telebot.TeleBot(9005250007:AAEumlmOgX2uQKyfTGdJrG6Nvq3RU657b4Q)
 app = Flask(__name__)
 
 waiting = None
