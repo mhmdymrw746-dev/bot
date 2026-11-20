@@ -286,186 +286,74 @@ async def send_guess(q, uid):
     item = GUESS_PLAYER[idx]
     kb = [[InlineKeyboardButton(o, callback_data=f"guess_ans_{i}")] for i, o in enumerate(item["opts"])]
     await q.edit_message_
-    # كمل من بعد سطر 288 - الصقه تحت آخر سطر عندك
-    await q.edit_message_text(item["hint"], reply_markup=InlineKeyboardMarkup(kb))
+    async def button_handler(update, context):
+    q = update.callback_query
+    await q.answer()
+    data = q.data
+    uid = q.from_user.id
 
-async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    q = update.callback_query; await q.answer(); uid = q.from_user.id; mod = get_mod(uid); data = q.data
     if data == "menu":
-        await start(update, context); return
-    if data == "mods":
-        await q.edit_message_text("🎨 اختار المود", reply_markup=mods_keyboard()); return
-    if data.startswith("set_"):
-        user_mod[uid] = data.replace("set_", ""); mod = get_mod(uid)
-        await q.edit_message_text(f"✅ تم! {mod['name']}", reply_markup=main_keyboard(mod, uid)); return
-    if data == "soon_menu":
-        await q.edit_message_text(f"🔥 كل المميزات شغالة!\n\n{UPDATE_TEXT}", reply_markup=soon_keyboard()); return
-    if data == "live_stream_menu":
-        kb = [[InlineKeyboardButton("🔴 الأهلي", callback_data="stream_ahly")], [InlineKeyboardButton("⚪ الزمالك", callback_data="stream_zamalek")], [InlineKeyboardButton("🌍 كل الماتشات", callback_data="stream_default")], [InlineKeyboardButton("🔙 القايمة", callback_data="menu")]]
-        await q.edit_message_text("📺 بث مباشر", reply_markup=InlineKeyboardMarkup(kb)); return
-    if data == "stream_ahly":
-        await q.edit_message_text(LIVE_STREAMS["ahly"], reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 بث", callback_data="live_stream_menu")]])); return
-    if data == "stream_zamalek":
-        await q.edit_message_text(LIVE_STREAMS["zamalek"], reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 بث", callback_data="live_stream_menu")]])); return
-    if data == "stream_default":
-        await q.edit_message_text(LIVE_STREAMS["default"], reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 بث", callback_data="live_stream_menu")]])); return
-    if data == "goals_video":
-        await q.edit_message_text(random.choice(GOALS_VIDEOS), reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🎥 فيديو تاني", callback_data="goals_video")], [InlineKeyboardButton("🔙 القايمة", callback_data="menu")]])); return
-    if data == "commentary":
-        await q.edit_message_text(fetch_commentary("egy.1"), reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔄 تحديث", callback_data="commentary")], [InlineKeyboardButton("🔙 القايمة", callback_data="menu")]])); return
-    if data == "fantasy_league_menu":
-        kb = [[InlineKeyboardButton("➕ اعمل دوري", callback_data="fantasy_league_create")], [InlineKeyboardButton("🔑 ادخل بكود", callback_data="fantasy_league_join")], [InlineKeyboardButton("🏆 ترتيب", callback_data="fantasy_league_board")], [InlineKeyboardButton("🔙 القايمة", callback_data="menu")]]
-        await q.edit_message_text("👥 فانتازي جماعي", reply_markup=InlineKeyboardMarkup(kb)); return
-    if data == "fantasy_league_create":
-        code = get_league_code(); fantasy_leagues[code] = {"members": {uid: user_points.get(uid, 0)}}
-        await q.edit_message_text(f"✅ عملت دوري!\n🔑 الكود: {code}\nابعته لصحابك", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القايمة", callback_data="menu")]])); return
-    if data == "fantasy_league_join":
-        await q.edit_message_text("🔑 اكتب في الشات: دخول 1234", reply_markup=soon_keyboard()); return
-    if data == "fantasy_league_board":
-        txt = "🏆 ترتيب الفانتازي\n"
-        all_pts = {}
-        for dl in fantasy_leagues.values():
-            for u, p in dl["members"].items():
-                all_pts[u] = max(all_pts.get(u, 0), p)
-        for i, (u, p) in enumerate(sorted(all_pts.items(), key=lambda x: x[1], reverse=True)[:10], 1):
-            txt += f"{i}️⃣ {str(u)[-4:]} - {p}\n"
-        await q.edit_message_text(txt or "لسه فاضي", reply_markup=soon_keyboard()); return
-    if data == "fan_chat_menu":
-        txt = "💬 شات جماهير\n"
-        if not fan_messages:
-            txt += "لسه فاضي، اكتب: اهلي: يلا يا أهلي"
-        else:
-            for m in fan_messages[-10:]:
-                txt += f"{m['team']} {m['user']}: {m['msg']}\n"
-        await q.edit_message_text(txt, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔄 تحديث", callback_data="fan_chat_menu")], [InlineKeyboardButton("🔙 القايمة", callback_data="menu")]])); return
-    if data == "predict_league":
-        predict_league_board[uid] = user_points.get(uid, 0)
-        txt = "🏆 دوري التوقعات\n"
-        for i, (u, p) in enumerate(sorted(predict_league_board.items(), key=lambda x: x[1], reverse=True)[:10], 1):
-            txt += f"{i}️⃣ {str(u)[-4:]} - {p}\n"
-        await q.edit_message_text(txt, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔮 توقع", callback_data="predict")], [InlineKeyboardButton("🔙 القايمة", callback_data="menu")]])); return
+        await q.edit_message_text("⚽ أهلاً بيك في بوت الكرة!\nاختار:", reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("📅 جدول المباريات", callback_data="schedule")],
+            [InlineKeyboardButton("🧠 كويز المحترفين", callback_data="quiz")],
+            [InlineKeyboardButton("🕵️ خمن اللاعب", callback_data="guess")],
+            [InlineKeyboardButton("🔔 تفعيل التنبيهات", callback_data="enable_notify")],
+        ])); return
+
     if data == "enable_notify":
         user_notify[uid] = True
-        await q.edit_message_text(f"✅ تم تفعيل التنبيهات!\n\n{UPDATE_TEXT}", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القايمة", callback_data="menu")]])); returnif data == "schedule":
+        await q.edit_message_text(f"✅ تم تفعيل التنبيهات!\n\n{UPDATE_TEXT}", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القايمة", callback_data="menu")]])); return
+
+    if data == "schedule":
         await q.edit_message_text(f"📅 جدول المباريات\n\n{UPDATE_TEXT}", reply_markup=schedule_keyboard()); return
+
     if data == "refresh_schedule":
-        update_schedule(); await q.edit_message_text(format_table("📅 الأسبوع", SCHEDULE_CACHE["week"][:40]), reply_markup=schedule_keyboard()); return
-    if data == "sched_today":
-        await q.edit_message_text(format_table("📅 النهاردة", SCHEDULE_CACHE["today"][:30]), reply_markup=schedule_keyboard()); return
-    if data == "sched_tomorrow":
-        await q.edit_message_text(format_table("📅 بكرة", SCHEDULE_CACHE["tomorrow"][:30]), reply_markup=schedule_keyboard()); return
-    if data == "sched_week":
-        await q.edit_message_text(format_table("📅 الأسبوع", SCHEDULE_CACHE["week"][:40]), reply_markup=schedule_keyboard()); return
-    if data == "live_all":
-        await q.edit_message_text(format_table("🔴 لايف", SCHEDULE_CACHE["live"]), reply_markup=schedule_keyboard()); return
-    if data == "all_matches":
-        await q.edit_message_text(f"🌍 كل الماتشات\n\n{UPDATE_TEXT}", reply_markup=all_keyboard()); return
-    if data == "football":
-        await q.edit_message_text("⚽ اختار الدوري", reply_markup=football_keyboard()); return
-    if data.startswith("match_"):
-        k = data.replace("match_", "")
-        if k in LEAGUES:
-            lst = SCHEDULE_CACHE.get(k, [])
-            if not lst:
-                lst = fetch_espn(ESPN_LEAGUES.get(k, "egy.1"))
-            await q.edit_message_text(format_table(LEAGUES[k]["name"], lst), reply_markup=schedule_keyboard()); return
-    if data == "ai_menu":
-        await q.edit_message_text("🤖 توقع AI", reply_markup=ai_keyboard()); return
-    if data == "ai_ahly_pyramids":
-        await q.edit_message_text(AI_PREDICTIONS["ahly_pyramids"], reply_markup=ai_keyboard()); return
-    if data == "ai_zamalek_gouna":
-        await q.edit_message_text(AI_PREDICTIONS["zamalek_gouna"], reply_markup=ai_keyboard()); return
-    if data == "lineup_menu":
-        await q.edit_message_text("📋 تشكيلة", reply_markup=lineup_keyboard()); return
-    if data == "lineup_ahly":
-        await q.edit_message_text(LINEUPS["ahly"], reply_markup=lineup_keyboard()); return
-    if data == "lineup_zamalek":
-        await q.edit_message_text(LINEUPS["zamalek"], reply_markup=lineup_keyboard()); return
-    if data == "details_menu":
-        await q.edit_message_text("🏟️ تفاصيل", reply_markup=details_keyboard()); return
-    if data == "details_ahly_pyramids":
-        await q.edit_message_text(MATCH_DETAILS["ahly_pyramids"], reply_markup=details_keyboard()); return
-    if data == "details_zamalek_gouna":
-        await q.edit_message_text(MATCH_DETAILS["zamalek_gouna"], reply_markup=details_keyboard()); return
-    if data=="ratings": await q.edit_message_text(random.choice(RATINGS),reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القايمة",callback_data="menu")]]));return
-    if data=="meme": await q.edit_message_text(random.choice(MEMES),reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("😂 ميم تاني",callback_data="meme")],[InlineKeyboardButton("🔙 القايمة",callback_data="menu")]]));return
-    if data=="wheel":
-        res=random.choice(WHEEL);pts=10 if "10" in res else 50 if "50" in res else 100 if "100" in res else 0
-        user_points[uid]=user_points.get(uid,0)+pts
-        await q.edit_message_text(f"🎰 {res}\n⭐ {user_points[uid]}",reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🎰 تاني",callback_data="wheel")],[InlineKeyboardButton("🔙 القايمة",callback_data="menu")]]));return
-    if data=="news_ahly": await q.edit_message_text(random.choice(AHLY_NEWS),reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القايمة",callback_data="menu")]]));return
-    if data=="news_zamalek": await q.edit_message_text(random.choice(ZAMALEK_NEWS),reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القايمة",callback_data="menu")]]));return
-    if data=="transfers": await q.edit_message_text(random.choice(TRANSFERS),reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القايمة",callback_data="menu")]]));return
-    if data=="standings": await q.edit_message_text("📊 ترتيب",reply_markup=standings_keyboard());return
-    if data.startswith("stand_"):
-        k=data.replace("stand_","");txt=f"📊 {LEAGUES.get(k,{}).get('name','')}\n"
-        for t,info in STANDINGS.get(k,[]): txt+=f"{t}\n{info}\n"
-        await q.edit_message_text(txt,reply_markup=standings_keyboard());return
-    if data=="scorers": await q.edit_message_text("🎯 هدافين",reply_markup=scorers_keyboard());return
-    if data.startswith("score_"): await q.edit_message_text(TOP_SCORERS.get(data.replace("score_",""),""),reply_markup=scorers_keyboard());return
-    if data=="assists": await q.edit_message_text("👟 زيزو - 6 أسيست",reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القايمة",callback_data="menu")]]));return
-    if data=="compare_menu": await q.edit_message_text("⚔️ ميسي 🆚 رونالدو\n🐐 ميسي 99\n👑 رونالدو 98",reply_markup=compare_keyboard());return
-    if data=="cmp_messi_ronaldo": await q.edit_message_text("⚔️ ميسي أحسن مهارة، رونالدو أحسن قوة",reply_markup=compare_keyboard());return
-    if data=="h2h_menu": await q.edit_message_text(H2H["ahly_zamalek"],reply_markup=h2h_keyboard());return
-    if data=="h2h_ahly_zamalek": await q.edit_message_text(H2H["ahly_zamalek"],reply_markup=h2h_keyboard());return
-            if data=="fantasy":
-        team=user_fantasy.get(uid,[]);txt="🏆 فانتازي\n"+("\n".join([f"⭐ {p}" for p in team]) if team else "فاضي")
-        await q.edit_message_text(txt,reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("➕ صلاح",callback_data="fantasy_add_salah")],[InlineKeyboardButton("🔙 القايمة",callback_data="menu")]]));return
-    if data.startswith("fantasy_add_"):
-        p=data.replace("fantasy_add_","");lst=user_fantasy.get(uid,[])
-        if p not in lst: lst.append(p);user_fantasy[uid]=lst
-        await q.edit_message_text(f"✅ ضفت {p}!",reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🏆 فريقي",callback_data="fantasy")]]));return
-    if data=="predict": await q.edit_message_text("🔮 توقع الأهلي 🆚 بيراميدز",reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔴 الأهلي",callback_data="pred_ahly")],[InlineKeyboardButton("🤝 تعادل",callback_data="pred_draw")],[InlineKeyboardButton("🔙 القايمة",callback_data="menu")]]));return
-    if data.startswith("pred_"): user_points[uid]=user_points.get(uid,0)+10;predict_league_board[uid]=user_points[uid];await q.edit_message_text(f"✅ +10 ⭐ {user_points[uid]}",reply_markup=main_keyboard(mod,uid));return
-    if data=="guess_start": user_score[uid]={"guess_idx":0};await send_guess(q,uid);return
-    if data.startswith("guess_ans_"):
-        ch=int(data.replace("guess_ans_",""));idx=user_score.get(uid,{}).get("guess_idx",0);cor=GUESS_PLAYER[idx]["ans"];fb="✅ صح! +5" if ch==cor else f"❌ غلط! الصح: {GUESS_PLAYER[idx]['opts'][cor]}"
-        if ch==cor: user_points[uid]=user_points.get(uid,0)+5
-        user_score[uid]["guess_idx"]=idx+1
-        await q.edit_message_text(fb,reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("➡️ اللي بعده",callback_data="guess_next")]]));return
-    if data=="guess_next": await send_guess(q,uid);return
-    if data=="players": await q.edit_message_text("⭐ اللاعيبة",reply_markup=players_keyboard());return
-    if data.startswith("player_"): await q.edit_message_text(PLAYERS.get(data.replace("player_",""),""),reply_markup=players_keyboard());return
-    if data=="quiz_start": user_score[uid]={"idx":0,"score":0};await send_quiz(q,uid);return
+        await q.edit_message_text(f"📅 جدول المباريات (تحديث)\n\n{UPDATE_TEXT}", reply_markup=schedule_keyboard()); return
+
+    if data == "quiz":
+        user_score[uid] = {"idx": 0, "score": 0}
+        await send_quiz(q, uid); return
+
     if data.startswith("quiz_ans_"):
-        ch=int(data.replace("quiz_ans_",""));st=user_score.get(uid,{"idx":0,"score":0});cor=PRO_QUIZ[st["idx"]]["ans"];fb="✅ صح! +10" if ch==cor else f"❌ غلط! الصح: {PRO_QUIZ[st['idx']]['opts'][cor]}"
-        if ch==cor: st["score"]+=1;user_points[uid]=user_points.get(uid,0)+10
-        st["idx"]+=1;user_score[uid]=st
-        await q.edit_message_text(fb,reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("➡️ اللي بعده",callback_data="quiz_next")]]));return
-    if data=="quiz_next": await send_quiz(q,uid);return
-    if data=="basics": await q.edit_message_text("📚 مبادئ",reply_markup=basics_keyboard());return
-    if data.startswith("basic_"): await q.edit_message_text(BASICS.get(data.replace("basic_",""),""),reply_markup=basics_keyboard());return
-    if data=="tip": await q.edit_message_text(random.choice(DAILY_TIPS),reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القايمة",callback_data="menu")]]));return
-        async def txt_h(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    mod=get_mod(update.effective_user.id);uid=update.effective_user.id;txt=update.message.text.lower();raw=update.message.text
-    if raw.startswith("اهلي:") or raw.startswith("أهلي:"):
-        fan_messages.append({"user":update.effective_user.first_name,"team":"🔴","msg":raw.split(":",1)[1].strip()})
-        await update.message.reply_text("✅ اتنشرت في شات الأهلي! 🔴",reply_markup=soon_keyboard());return
-    if raw.startswith("زمالك:"):
-        fan_messages.append({"user":update.effective_user.first_name,"team":"⚪","msg":raw.split(":",1)[1].strip()})
-        await update.message.reply_text("✅ اتنشرت في شات الزمالك! ⚪",reply_markup=soon_keyboard());return
-    if raw.startswith("دخول"):
-        code=raw.replace("دخول","").strip()
-        if code in fantasy_leagues: fantasy_leagues[code]["members"][uid]=user_points.get(uid,0);await update.message.reply_text(f"✅ دخلت الدوري {code}!",reply_markup=soon_keyboard())
-        else: await update.message.reply_text(f"❌ الكود {code} مش موجود",reply_markup=soon_keyboard())
-        return
-    if "جدول" in txt or "ماتشات" in txt: await update.message.reply_text(format_table("📅 الأسبوع",SCHEDULE_CACHE["week"][:30]),reply_markup=schedule_keyboard());return
-    await update.message.reply_text(f"{mod['emoji']} وصلت: {raw} ✅\n{UPDATE_TEXT}",reply_markup=main_keyboard(mod,uid))
+        idx = user_score.get(uid, {}).get("idx", 0)
+        ans = int(data.split("_")[-1])
+        if ans == PRO_QUIZ[idx]["ans"]:
+            user_score[uid]["score"] += 1
+            await q.answer("✅ صح!", show_alert=False)
+        else:
+            await q.answer(f"❌ غلط! الصح: {PRO_QUIZ[idx]['opts'][PRO_QUIZ[idx]['ans']]}", show_alert=False)
+        user_score[uid]["idx"] += 1
+        await send_quiz(q, uid); return
+
+    if data == "guess":
+        user_score[uid] = {"guess_idx": 0, "guess_score": 0}
+        await send_guess(q, uid); return
+
+    if data.startswith("guess_ans_"):
+        idx = user_score.get(uid, {}).get("guess_idx", 0)
+        ans = int(data.split("_")[-1])
+        if ans == GUESS_PLAYER[idx]["ans"]:
+            user_score[uid]["guess_score"] += 1
+            await q.answer("✅ صح!", show_alert=False)
+        else:
+            await q.answer(f"❌ غلط! الصح: {GUESS_PLAYER[idx]['opts'][GUESS_PLAYER[idx]['ans']]}", show_alert=False)
+        user_score[uid]["guess_idx"] += 1
+        await send_guess(q, uid); return
+
+async def start(update, context):
+    await update.message.reply_text("⚽ أهلاً بيك في بوت الكرة!\nاختار:", reply_markup=InlineKeyboardMarkup([
+        [InlineKeyboardButton("📅 جدول المباريات", callback_data="schedule")],
+        [InlineKeyboardButton("🧠 كويز المحترفين", callback_data="quiz")],
+        [InlineKeyboardButton("🕵️ خمن اللاعب", callback_data="guess")],
+        [InlineKeyboardButton("🔔 تفعيل التنبيهات", callback_data="enable_notify")],
+    ]))
+
 def main():
-    if not TOKEN: print("❌ مفيش توكن!");return
-    update_schedule()
-    app=Application.builder().token(TOKEN).build()
-    def auto_loop():
-        while True:
-            time.sleep(1800)
-            try: update_schedule()
-            except Exception as e: print(e)
-    threading.Thread(target=auto_loop,daemon=True).start()
-    app.add_handler(CommandHandler("start",start))
-    app.add_handler(CommandHandler("matches",start))
-    app.add_handler(CommandHandler("schedule",start))
+    app = Application.builder().token(TOKEN).build()
+    app.add_handler(CommandHandler("start", start))
     app.add_handler(CallbackQueryHandler(button_handler))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND,txt_h))
-    print("Bot running ALL FINAL")
+    print("Bot running...")
     app.run_polling()
-if __name__=="__main__": main()
+
+if __name__ == "__main__":
+    main()
