@@ -346,8 +346,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await q.edit_message_text(txt, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔮 توقع", callback_data="predict")], [InlineKeyboardButton("🔙 القايمة", callback_data="menu")]])); return
     if data == "enable_notify":
         user_notify[uid] = True
-        await q.edit_message_text(f"✅ تم تفعيل التنبيهات!\n\n{UPDATE_TEXT}", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القايمة", callback_data="menu")]])); return
-            if data == "schedule":
+        await q.edit_message_text(f"✅ تم تفعيل التنبيهات!\n\n{UPDATE_TEXT}", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القايمة", callback_data="menu")]])); returnif data == "schedule":
         await q.edit_message_text(f"📅 جدول المباريات\n\n{UPDATE_TEXT}", reply_markup=schedule_keyboard()); return
     if data == "refresh_schedule":
         update_schedule(); await q.edit_message_text(format_table("📅 الأسبوع", SCHEDULE_CACHE["week"][:40]), reply_markup=schedule_keyboard()); return
