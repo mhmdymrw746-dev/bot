@@ -287,7 +287,7 @@ async def send_guess(q, uid):
     kb = [[InlineKeyboardButton(o, callback_data=f"guess_ans_{i}")] for i, o in enumerate(item["opts"])]
     await q.edit_message_
     async def button_handler(update, context):
-    q = update.callback_query
+        q = update.callback_query
     await q.answer()
     data = q.data
     uid = q.from_user.id
