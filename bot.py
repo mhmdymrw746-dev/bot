@@ -1,15 +1,14 @@
-# ==========================================
-# بوت الكورة الشامل - من صنع عدي عمرو ⚽🔥
-# كل المميزات في ملف واحد
-# ==========================================
+# bot.py - بوت الكورة الشامل - من صنع عدي عمرو ⚽🔥
+# متظبط لـ Render
 
+import os
 import requests
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
 
-TOKEN = "حط_التوكن_بتاعك_هنا"
+# التوكن هيتاخد من Render مش من الكود عشان ميقعش
+TOKEN = os.environ.get("TOKEN") or "حط_التوكن_بتاعك_هنا"
 
-# ============ 1- القنوات الناقلة ============
 CHANNELS = {
     "English Premier League": "📺 beIN SPORTS 1",
     "Spanish La Liga": "📺 beIN SPORTS 3",
@@ -32,22 +31,17 @@ LEAGUES = {
     "sau.1": "الدوري السعودي 🇸🇦",
 }
 
-# ============ 2- قاعدة بيانات اللاعبين - 10000+ لاعب ============
-# دي عينة، تقدر تزود عليها براحتك
 PLAYERS_DB = {
     "صلاح": {"team": "ليفربول", "country": "🇪🇬 مصر", "pos": "جناح ايمن", "age": 34, "foot": "اليسرى", "goals": 18, "assists": 12, "matches": 25, "rating": 8.5, "skills": {"السرعة": 92, "التسديد": 90, "المراوغة": 91, "التمرير": 87, "اللياقة": 88}},
     "مبابي": {"team": "ريال مدريد", "country": "🇫🇷 فرنسا", "pos": "مهاجم", "age": 27, "foot": "اليمنى", "goals": 22, "assists": 8, "matches": 24, "rating": 9.0, "skills": {"السرعة": 97, "التسديد": 93, "المراوغة": 94, "التمرير": 85, "اللياقة": 90}},
     "هالاند": {"team": "مان سيتي", "country": "🇳🇴 النرويج", "pos": "مهاجم", "age": 26, "foot": "اليسرى", "goals": 25, "assists": 5, "matches": 23, "rating": 9.1, "skills": {"السرعة": 90, "التسديد": 95, "المراوغة": 82, "التمرير": 80, "اللياقة": 92}},
     "ميسي": {"team": "انتر ميامي", "country": "🇦🇷 الأرجنتين", "pos": "صانع لعب", "age": 39, "foot": "اليسرى", "goals": 15, "assists": 18, "matches": 22, "rating": 8.9, "skills": {"السرعة": 85, "التسديد": 92, "المراوغة": 96, "التمرير": 95, "اللياقة": 82}},
     "رونالدو": {"team": "النصر", "country": "🇵🇹 البرتغال", "pos": "مهاجم", "age": 41, "foot": "اليمنى", "goals": 20, "assists": 6, "matches": 24, "rating": 8.7, "skills": {"السرعة": 88, "التسديد": 94, "المراوغة": 87, "التمرير": 82, "اللياقة": 90}},
-    "فينيسيوس": {"team": "ريال مدريد", "country": "🇧🇷 البرازيل", "pos": "جناح ايسر", "age": 26, "foot": "اليمنى", "goals": 14, "assists": 10, "matches": 24, "rating": 8.6, "skills": {"السرعة": 95, "التسديد": 86, "المراوغة": 95, "التمرير": 84, "اللياقة": 89}},
-    "بيلينجهام": {"team": "ريال مدريد", "country": "🏴 إنجلترا", "pos": "وسط هجومي", "age": 23, "foot": "اليمنى", "goals": 12, "assists": 11, "matches": 25, "rating": 8.8, "skills": {"السرعة": 87, "التسديد": 88, "المراوغة": 89, "التمرير": 90, "اللياقة": 91}},
     "مرموش": {"team": "مان سيتي", "country": "🇪🇬 مصر", "pos": "مهاجم", "age": 27, "foot": "اليمنى", "goals": 10, "assists": 7, "matches": 20, "rating": 8.2, "skills": {"السرعة": 91, "التسديد": 85, "المراوغة": 88, "التمرير": 82, "اللياقة": 87}},
     "زيزو": {"team": "الأهلي", "country": "🇪🇬 مصر", "pos": "جناح ايمن", "age": 30, "foot": "اليمنى", "goals": 8, "assists": 9, "matches": 22, "rating": 8.0, "skills": {"السرعة": 86, "التسديد": 82, "المراوغة": 88, "التمرير": 85, "اللياقة": 84}},
     "كين": {"team": "بايرن ميونخ", "country": "🏴 إنجلترا", "pos": "مهاجم", "age": 33, "foot": "اليمنى", "goals": 24, "assists": 9, "matches": 23, "rating": 9.0, "skills": {"السرعة": 84, "التسديد": 95, "المراوغة": 85, "التمرير": 90, "اللياقة": 86}},
 }
 
-# ============ 3- القايمة الرئيسية ============
 def main_menu():
     keyboard = [
         [InlineKeyboardButton("🔴 لايف الآن", callback_data="live"),
@@ -68,7 +62,6 @@ def main_menu():
     ]
     return InlineKeyboardMarkup(keyboard)
 
-# ============ 4- الترحيب - من صنع عدي عمرو ============
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     name = user.first_name or "يا بطل"
@@ -86,7 +79,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=main_menu()
     )
 
-# ============ 5- جلب الماتشات من ESPN - سريع ومحسن ============
 def get_matches(league_id="eng.1"):
     try:
         url = f"https://site.api.espn.com/apis/site/v2/sports/soccer/{league_id}/scoreboard"
@@ -109,11 +101,9 @@ def format_match(ev):
     except:
         return ""
 
-# ============ 6- التعامل مع الأزرار - كل المميزات ============
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer("جاري التحميل... ⚽")
-    await query.message.chat.send_action("typing")
     data = query.data
 
     if data in ["live", "today"]:
@@ -127,135 +117,69 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     text += format_match(ev) + "\n"
                     found = True
         if not found:
-            text = "😅 مفيش ماتشات شغالة دلوقتي\nجرب كمان شوية، او شوف ماتشات بكرة"
+            text = "😅 مفيش ماتشات شغالة دلوقتي"
         await query.message.reply_text(text, reply_markup=main_menu())
-
     elif data == "table":
-        await query.message.reply_text(
-            "🏆 جدول الترتيب - الدوري الإنجليزي\n━━━━━━━━━━━━━━━\n\n"
-            "1- أرسنال - 28 نقطة\n2- مان سيتي - 27 نقطة\n3- ليفربول - 26 نقطة\n4- تشيلسي - 24 نقطة\n5- توتنهام - 22 نقطة\n\n"
-            "📺 القناة: beIN SPORTS 1",
-            reply_markup=main_menu())
-
+        await query.message.reply_text("🏆 الترتيب:\n1- أرسنال - 28\n2- مان سيتي - 27\n3- ليفربول - 26", reply_markup=main_menu())
     elif data == "scorers":
-        await query.message.reply_text(
-            "⚽ الهدافين 🔥\n━━━━━━━━━━━━━━━\n\n"
-            "1- هالاند - 14 جول\n2- محمد صلاح - 11 جول 🇪🇬\n3- مبابي - 10 جول\n4- كين - 9 جول\n5- ليفاندوفسكي - 8 جول",
-            reply_markup=main_menu())
-
+        await query.message.reply_text("⚽ الهدافين:\n1- هالاند 14 🔥\n2- صلاح 11 🇪🇬\n3- مبابي 10", reply_markup=main_menu())
     elif data == "channels":
-        await query.message.reply_text(
-            "📺 القنوات الناقلة\n━━━━━━━━━━━━━━━\n\n"
-            "🏴 الدوري الإنجليزي: beIN 1\n🇪🇸 الدوري الإسباني: beIN 3\n🇮🇹 الدوري الإيطالي: beIN 4\n🇩🇪 الدوري الألماني: beIN 5\n🇫🇷 الدوري الفرنسي: beIN 2\n🏆 دوري الأبطال: beIN 1\n🇪🇬 الدوري المصري: ON Sport 1\n🇸🇦 الدوري السعودي: SSC 1",
-            reply_markup=main_menu())
-
+        await query.message.reply_text("📺 القنوات:\n🏴 إنجليزي: beIN 1\n🇪🇸 إسباني: beIN 3\n🇪🇬 مصري: ON Sport 1\n🇸🇦 سعودي: SSC 1", reply_markup=main_menu())
     elif data == "lineup":
-        await query.message.reply_text(
-            "📋 تشكيلة ليفربول المتوقعة:\n\n"
-            "أليسون\nأرنولد - فان دايك - كوناتي - روبرتسون\nسوبوسلاي - جرافينبيرخ - ماك أليستر\nصلاح - إيزاك - جاكبو",
-            reply_markup=main_menu())
-
+        await query.message.reply_text("📋 تشكيلة ليفربول:\nأليسون - أرنولد - فان دايك - كوناتي - روبرتسون\nسوبوسلاي - جرافينبيرخ - ماك أليستر\nصلاح - إيزاك - جاكبو", reply_markup=main_menu())
     elif data == "stats":
-        await query.message.reply_text(
-            "📊 احصائيات اخر ماتش\n━━━━━━━━━━━━━━━\n\n"
-            "استحواذ: 65% - 35%\nتسديدات: 18 - 7\nركنيات: 8 - 2\nكروت صفرا: 2 - 4",
-            reply_markup=main_menu())
-
+        await query.message.reply_text("📊 استحواذ: 65% - 35%\nتسديدات: 18 - 7\nركنيات: 8 - 2", reply_markup=main_menu())
     elif data == "predict":
-        await query.message.reply_text(
-            "🤖 توقعات الماتش\n━━━━━━━━━━━━━━━\n\n"
-            "ليفربول 60% - تعادل 20% - يونايتد 20%\nالنتيجة المتوقعة: 2-1 لليفربول",
-            reply_markup=main_menu())
-
+        await query.message.reply_text("🤖 توقع: ليفربول 60% - تعادل 20% - يونايتد 20%\nالنتيجة: 2-1", reply_markup=main_menu())
     elif data == "motm":
-        await query.message.reply_text(
-            "🏅 لاعب المباراة\n━━━━━━━━━━━━━━━\n\n"
-            "محمد صلاح ⭐ 9.2/10\nجولين + اسيست 🔥",
-            reply_markup=main_menu())
-
+        await query.message.reply_text("🏅 لاعب المباراة: محمد صلاح ⭐ 9.2/10", reply_markup=main_menu())
     elif data == "highlights":
-        await query.message.reply_text(
-            "🎥 ملخصات الماتشات\n━━━━━━━━━━━━━━━\n\n"
-            "ليفربول 2-1 يونايتد:\nhttps://www.youtube.com/results?search_query=ليفربول+يونايتد+ملخص",
-            reply_markup=main_menu())
-
+        await query.message.reply_text("🎥 ملخص: https://www.youtube.com/results?search_query=ملخص+ماتشات+اليوم", reply_markup=main_menu())
     elif data == "news":
-        await query.message.reply_text(
-            "📰 اخر اخبار الكورة\n━━━━━━━━━━━━━━━\n\n"
-            "• صلاح يقترب من تجديد عقده 🔥\n• ريال مدريد يجهز عرض لمبابي\n• الأهلي يتعاقد مع مهاجم جديد\n• مان سيتي يتصدر الدوري",
-            reply_markup=main_menu())
-
+        await query.message.reply_text("📰 اخبار:\n• صلاح يقترب من التجديد 🔥\n• ريال مدريد يجهز عرض ضخم", reply_markup=main_menu())
     elif data == "fantasy":
-        await query.message.reply_text(
-            "🎮 فانتازي\n━━━━━━━━━━━━━━━\n\n"
-            "تشكيلتك: صلاح (C) - هالاند - مبابي\nنقط الاسبوع ده: 78 نقطة 🔥",
-            reply_markup=main_menu())
-
+        await query.message.reply_text("🎮 فانتازي: تشكيلتك جابت 78 نقطة 🔥", reply_markup=main_menu())
     elif data == "notify":
-        await query.message.reply_text(
-            "🔔 تم تفعيل تنبيه الجول ✅\nاول ما يجي جول هبعتلك على طول!",
-            reply_markup=main_menu())
-
+        await query.message.reply_text("🔔 تم تفعيل تنبيه الجول ✅", reply_markup=main_menu())
     elif data == "player_search":
-        await query.message.reply_text(
-            "🔍 اكتب اسم اي لاعب 👇\n"
-            "مثال: صلاح - مبابي - هالاند - ميسي - رونالدو - مرموش - زيزو")
+        await query.message.reply_text("🔍 اكتب اسم اي لاعب 👇\nمثال: صلاح - مبابي - هالاند")
         context.user_data["waiting"] = "player"
-
     elif data == "fav":
         await query.message.reply_text("⭐ اكتب اسم فريقك المفضل:", reply_markup=main_menu())
         context.user_data["waiting"] = "fav"
 
-# ============ 7- البحث عن اللاعبين + الفريق المفضل ============
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip()
     waiting = context.user_data.get("waiting")
-
     if waiting == "player":
-        found = None
         for key, p in PLAYERS_DB.items():
             if key in text or text in key:
-                found = (key, p)
-                break
-        if found:
-            name, p = found
-            skills_txt = "\n".join([f"{k}: {v}" for k, v in p["skills"].items()])
-            await update.message.reply_text(
-                f"👤 {name}\n"
-                f"🏴 {p['team']} | {p['country']}\n"
-                f"📍 المركز: {p['pos']} | 🎂 العمر: {p['age']}\n"
-                f"👟 القدم: {p['foot']}\n\n"
-                f"📊 الموسم ده:\n"
-                f"⚽ اهداف: {p['goals']}\n🎯 اسيست: {p['assists']}\n🏟️ ماتشات: {p['matches']}\n⭐ التقييم: {p['rating']}/10\n\n"
-                f"🎮 المهارات:\n{skills_txt}\n\n"
-                f"🎥 اهدافه: https://www.youtube.com/results?search_query={name}+اهداف",
-                reply_markup=main_menu()
-            )
-        else:
-            await update.message.reply_text(
-                f"ملقيتش لاعب اسمه {text} 😅\n"
-                f"جرب: صلاح - مبابي - هالاند - ميسي - رونالدو - مرموش - زيزو",
-                reply_markup=main_menu())
+                skills_txt = "\n".join([f"{k}: {v}" for k, v in p["skills"].items()])
+                await update.message.reply_text(
+                    f"👤 {key}\n🏴 {p['team']} | {p['country']}\n📍 {p['pos']} | 🎂 {p['age']}\n\n"
+                    f"⚽ اهداف: {p['goals']} | 🎯 اسيست: {p['assists']}\n⭐ {p['rating']}/10\n\n"
+                    f"🎮 المهارات:\n{skills_txt}\n\n🎥 اهدافه: https://www.youtube.com/results?search_query={key}+اهداف",
+                    reply_markup=main_menu())
+                context.user_data["waiting"] = None
+                return
+        await update.message.reply_text("ملقيتش اللاعب ده 😅 جرب صلاح - مبابي - هالاند", reply_markup=main_menu())
         context.user_data["waiting"] = None
         return
-
     if waiting == "fav":
-        context.user_data["fav_team"] = text
-        await update.message.reply_text(
-            f"⭐ تمام! فريقك المفضل بقى {text} ✅\nهبعتلك كل ماتشاته واخباره.",
-            reply_markup=main_menu())
+        await update.message.reply_text(f"⭐ تمام! فريقك بقى {text} ✅", reply_markup=main_menu())
         context.user_data["waiting"] = None
         return
+    await update.message.reply_text("اكتب /start", reply_markup=main_menu())
 
-    await update.message.reply_text("اكتب /start عشان تشوف القايمة", reply_markup=main_menu())
-
-# ============ 8- التشغيل ============
 def main():
+    if not TOKEN or TOKEN == "حط_التوكن_بتاعك_هنا":
+        print("❌ غلط: مفيش TOKEN! روح Render > Environment وحط TOKEN")
+        return
+    print("بوت عدي عمرو شغال 🔥")
     app = Application.builder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
-    print("بوت عدي عمرو شغال 🔥")
     app.run_polling()
 
 if __name__ == "__main__":
