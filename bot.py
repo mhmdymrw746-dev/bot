@@ -1,81 +1,81 @@
-import os
-import requests
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters
+import os, requests, telebot
+from datetime import date, timedelta
+from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
+b = telebot.TeleBot(os.environ.get("TOKEN"))
+A = "https://www.thesportsdb.com/api/v1/json/3"
 
-TOKEN = os.getenv("BOT_TOKEN")
-
-def main_menu():
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton("🎬 تحميل HD 🔥", callback_data="hd")],
-        [InlineKeyboardButton("✨ بدون علامة مائية", callback_data="no_wm")],
-        [InlineKeyboardButton("⚡ تحميل سريع", callback_data="fast")],
-        [InlineKeyboardButton("👑 تواصل مع عدي", url="https://t.me/TRAN_5")]
-    ])
-
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "👑 أهلا بيك يا وحش في بوت عدي 🔥\n\n"
-        "📥 ابعت لينك تيك توك وأنا أحملهولك\n"
-        "🎬 جودة عالية HD\n"
-        "✨ بدون علامة مائية\n"
-        "⚡ تحميل سريع\n\n"
-        "👇 ابعت اللينك دلوقتي",
-        reply_markup=main_menu()
+def kb():
+    k = InlineKeyboardMarkup(row_width=2)
+    k.add(
+        InlineKeyboardButton("🔴 لايف دلوقتي", callback_data="live"),
+        InlineKeyboardButton("📅 النهاردة", callback_data="today"),
+        InlineKeyboardButton("📆 بكرة", callback_data="tomorrow"),
+        InlineKeyboardButton("📆 بعده", callback_data="after"),
+        InlineKeyboardButton("🗓️ الاسبوع كله", callback_data="week"),
+        InlineKeyboardButton("🌍 كل الماتشات", callback_data="all")
     )
+    return k
 
-async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    url = update.message.text.strip()
-    if "tiktok" not in url:
-        await update.message.reply_text("❌ ابعت لينك تيك توك بس يا وحش")
-        return
-
-    context.user_data["last_url"] = url
-    await update.message.reply_text(
-        "🔥 تمام، لقيت اللينك\nاختار عايز تحمله ازاي 👇",
-        reply_markup=main_menu()
-    )
-
-async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    q = update.callback_query
-    await q.answer()
-    url = context.user_data.get("last_url")
-
-    if not url:
-        await q.message.reply_text("❌ ابعت اللينك الأول يا وحش")
-        return
-
-    await q.message.reply_text("⏳ بحملك الفيديو بجودة عالية... استنى ثواني 🔥")
-
+def send_day(chat_id, day):
     try:
-        r = requests.get(f"https://www.tikwm.com/api/?url={url}&hd=1", timeout=40).json()
-        data = r.get("data", {})
-
-        # أعلى جودة ممكنة HD أولا
-        video_url = data.get("hdplay") or data.get("play") or data.get("wmplay")
-        title = data.get("title", "فيديو تيك توك")
-        author = data.get("author", {}).get("nickname", "TikTok")
-        duration = data.get("duration", 0)
-
-        if not video_url:
-            await q.message.reply_text(
-                "❌ اللينك ده محمي أو الفيديو خاص\n"
-                "جرب فيديو عام تاني يكون صاحبه سامح بالتحميل"
-            )
+        r = requests.get(f"{A}/eventsday.php?d={day}&s=Soccer", timeout=20).json()
+        ev = r.get("events") or []
+        if not ev:
+            b.send_message(chat_id, f"مفيش ماتشات يوم {day} 😴")
             return
+        txt = f"📅 ماتشات {day} 🌍\nالعدد: {len(ev)} ماتش\n\n"
+        c = 0
+        for e in ev:
+            t = str(e.get("strTime",""))[:5]
+            txt += f"⏰ {t} | {e['strHomeTeam']} vs {e['strAwayTeam']}\n🏆 {e.get('strLeague','')} - {e.get('strCountry','')}\n\n"
+            c += 1
+            if c % 12 == 0:
+                b.send_message(chat_id, txt)
+                txt = ""
+        if txt:
+            b.send_message(chat_id, txt)
+    except:
+        b.send_message(chat_id, "حصل خطأ جرب تاني")
 
-        await q.message.reply_video(
-            video=video_url,
-            caption=f"🔥 {title}\n\n👤 بواسطة: {author}\n⏱ المدة: {duration} ثانية\n🎬 جودة: HD عالية\n\n👑 بوت عدي | @TRAN_5",
-            reply_markup=main_menu()
-        )
+@b.message_handler(commands=['start'])
+def start(m):
+    b.send_message(m.chat.id, "بوت الكورة العالمي 🌍⚽🔥\n\nكل مواعيد الماتشات من كل الدول في مكان واحد\nاختار من الزراير 👇", reply_markup=kb())
 
-    except Exception as e:
-        await q.message.reply_text("❌ حصل خطأ، جرب لينك تاني يا وحش")
+@b.callback_query_handler(func=lambda c: True)
+def cb(c):
+    chat = c.message.chat.id
+    b.answer_callback_query(c.id, "بحمل الماتشات... ⏳")
+    if c.data == "live":
+        try:
+            r = requests.get(f"{A}/livescore.php?s=Soccer", timeout=20).json()
+            ev = r.get("events") or []
+            if not ev:
+                b.send_message(chat, "مفيش ماتشات شغالة دلوقتي 😴", reply_markup=kb())
+                return
+            txt = f"🔴 لايف دلوقتي - {len(ev)} ماتش\n\n"
+            for e in ev:
+                txt += f"{e['strHomeTeam']} {e['intHomeScore']} - {e['intAwayScore']} {e['strAwayTeam']}\n🏆 {e.get('strLeague','')} - {e.get('strCountry','')} | {e.get('strStatus','')}\n\n"
+            for i in range(0, len(txt), 4000):
+                b.send_message(chat, txt[i:i+4000])
+            b.send_message(chat, "اختار تاني 👇", reply_markup=kb())
+        except:
+            b.send_message(chat, "حصل خطأ", reply_markup=kb())
+    elif c.data == "today":
+        send_day(chat, date.today().strftime("%Y-%m-%d"))
+        b.send_message(chat, "خلصت 👇", reply_markup=kb())
+    elif c.data == "tomorrow":
+        send_day(chat, (date.today()+timedelta(days=1)).strftime("%Y-%m-%d"))
+        b.send_message(chat, "خلصت 👇", reply_markup=kb())
+    elif c.data == "after":
+        send_day(chat, (date.today()+timedelta(days=2)).strftime("%Y-%m-%d"))
+        b.send_message(chat, "خلصت 👇", reply_markup=kb())
+    elif c.data == "week":
+        for i in range(7):
+            send_day(chat, (date.today()+timedelta(days=i)).strftime("%Y-%m-%d"))
+        b.send_message(chat, "دي كل ماتشات الاسبوع 👇", reply_markup=kb())
+    elif c.data == "all":
+        for i in range(3):
+            send_day(chat, (date.today()+timedelta(days=i)).strftime("%Y-%m-%d"))
+        b.send_message(chat, "دي كل الماتشات 👇", reply_markup=kb())
 
-if __name__ == "__main__":
-    app = ApplicationBuilder().token(TOKEN).build()
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CallbackQueryHandler(button))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_link))
-    app.run_polling()
+b.infinity_polling()
