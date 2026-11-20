@@ -1,562 +1,243 @@
-‏import os
-‏import threading
-‏import requests
-‏import random
-‏from http.server import BaseHTTPRequestHandler, HTTPServer
-‏from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice
-‏from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes, PreCheckoutQueryHandler
-‏from datetime import datetime, timezone, timedelta
-‏
-‏TOKEN = os.environ.get("TOKEN")
-‏OWNER_ID = 8188263997
-‏
-‏class H(BaseHTTPRequestHandler):
-‏    def do_GET(self):
-‏        self.send_response(200)
-‏        self.end_headers()
-‏        self.wfile.write(b"ok")
-‏    def log_message(self, *a):
-‏        pass
-‏
-‏def keep():
-‏    p = int(os.environ.get("PORT", 10000))
-‏    try:
-‏        HTTPServer(("0.0.0.0", p), H).serve_forever()
-‏    except:
-‏        pass
-‏
-‏threading.Thread(target=keep, daemon=True).start()
-‏
-‏ratings = []
-‏points = {}
-‏searching = []
-‏all_users = set()
-‏notify_users = set()
-‏predictions = {}
-‏
-‏LEAGUES = {}
-‏LEAGUES["eng.1"] = "الدوري الانجليزي"
-‏LEAGUES["esp.1"] = "الدوري الاسباني"
-‏LEAGUES["ita.1"] = "الدوري الايطالي"
-‏LEAGUES["ger.1"] = "الدوري الالماني"
-‏LEAGUES["fra.1"] = "الدوري الفرنسي"
-‏LEAGUES["uefa.champions"] = "دوري ابطال اوروبا"
-‏LEAGUES["egy.1"] = "الدوري المصري"
-‏LEAGUES["sau.1"] = "الدوري السعودي"
-‏
-‏TEAMS = {}
-‏TEAMS["Liverpool"] = "ليفربول"
-‏TEAMS["Arsenal"] = "ارسنال"
-‏TEAMS["Manchester City"] = "مانشستر سيتي"
-‏TEAMS["Manchester United"] = "مانشستر يونايتد"
-‏TEAMS["Chelsea"] = "تشيلسي"
-‏TEAMS["Real Madrid"] = "ريال مدريد"
-‏TEAMS["Barcelona"] = "برشلونة"
-‏TEAMS["Bayern Munich"] = "بايرن ميونخ"
-‏TEAMS["Paris Saint-Germain"] = "باريس سان جيرمان"
-‏TEAMS["Al Ahly"] = "الاهلي"
-‏TEAMS["Zamalek"] = "الزمالك"
-‏TEAMS["Al Hilal"] = "الهلال"
-‏TEAMS["Al Nassr"] = "النصر"
-‏
-‏PLAYERS = {}
-‏PLAYERS["صلاح"] = "ليفربول | مصر | اهداف 18 | تقييم 8.5"
-‏PLAYERS["مبابي"] = "ريال مدريد | فرنسا | اهداف 22 | تقييم 9.0"
-‏PLAYERS["هالاند"] = "مان سيتي | النرويج | اهداف 25 | تقييم 9.1"
-‏PLAYERS["ميسي"] = "انتر ميامي | الارجنتين | اهداف 15 | تقييم 8.9"
-‏PLAYERS["رونالدو"] = "النصر | البرتغال | اهداف 20 | تقييم 8.7"
-‏PLAYERS["مرموش"] = "مان سيتي | مصر | اهداف 10 | تقييم 8.2"
-‏PLAYERS["زيزو"] = "الاهلي | مصر | اهداف 8 | تقييم 8.0"
-‏
-‏QUIZ = []
-‏QUIZ.append(["مين اكتر لاعب سجل اهداف في كاس العالم؟", "كلوزه", "رونالدو", "ميسي", "مبابي", "كلوزه"])
-‏QUIZ.append(["فين فريق الاهلي بيلعب؟", "القاهرة", "الجيزة", "اسكندرية", "اسوان", "القاهرة"])
-‏QUIZ.append(["كم مرة ريال مدريد خد الابطال؟", "15", "14", "13", "12", "15"])
-‏QUIZ.append(["مين هداف الدوري الانجليزي دلوقتي؟", "هالاند", "صلاح", "مبابي", "كين", "هالاند"])
-‏QUIZ.append(["منتخب مصر خد امم افريقيا كام مرة؟", "7", "6", "5", "4", "7"])
-‏
-‏def ar_team(n):
-‏    if n in TEAMS:
-‏        return TEAMS[n]
-‏    return n
-‏
-‏def get_avg():
-‏    if len(ratings) == 0:
-‏        return 0
-‏    total = 0
-‏    for r in ratings:
-‏        total = total + r[1]
-‏    return total / len(ratings)
-‏
-‏def get_count(stars):
-‏    c = 0
-‏    for r in ratings:
-‏        if r[1] == stars:
-‏            c = c + 1
-‏    return c
-‏
-‏def box(title, body):
-‏    t = "=== "
-‏    t = t + title
-‏    t = t + " ===\n\n"
-‏    t = t + body
-‏    t = t + "\n\n--------------\n"
-‏    t = t + "بوت عدي عمرو | @TRAN_5"
-‏    return t
-‏
-‏def ratings_text():
-‏    avg = get_avg()
-‏    body = ""
-‏    if len(ratings) == 0:
-‏        body = "لسه مفيش تقييمات\nكن اول واحد يقيم"
-‏        return box("تقييمات البوت", body)
-‏    body = body + "المتوسط: "
-‏    body = body + str(round(avg, 1))
-‏    body = body + " من 5\n"
-‏    body = body + "عدد المقيمين: "
-‏    body = body + str(len(ratings))
-‏    body = body + "\n\n"
-‏    body = body + "التوزيع:\n"
-‏    body = body + "5 نجوم: "
-‏    body = body + str(get_count(5))
-‏    body = body + "\n"
-‏    body = body + "4 نجوم: "
-‏    body = body + str(get_count(4))
-‏    body = body + "\n"
-‏    body = body + "3 نجوم: "
-‏    body = body + str(get_count(3))
-‏    body = body + "\n"
-‏    body = body + "نجمتين: "
-‏    body = body + str(get_count(2))
-‏    body = body + "\n"
-‏    body = body + "نجمة: "
-‏    body = body + str(get_count(1))
-‏    body = body + "\n\n"
-‏    body = body + "اخر التقييمات:\n"
-‏    last = ratings[-5:]
-‏    for r in last:
-‏        s_txt = ""
-‏        for i in range(r[1]):
-‏            s_txt = s_txt + "*"
-‏        body = body + s_txt
-‏        body = body + " من "
-‏        body = body + str(r[2])
-‏        body = body + "\n"
-‏    return box("تقييمات البوت", body)
-‏
-‏def users_text():
-‏    body = ""
-‏    body = body + "جرب البوت: "
-‏    body = body + str(len(all_users))
-‏    body = body + " واحد\n"
-‏    body = body + "قيم البوت: "
-‏    body = body + str(len(ratings))
-‏    body = body + " واحد\n"
-‏    body = body + "مفعل التنبيه: "
-‏    body = body + str(len(notify_users))
-‏    body = body + " واحد\n\n"
-‏    if len(all_users) >= 100:
-‏        body = body + "البوت مكسر الدنيا! +100 واحد"
-‏    elif len(all_users) >= 50:
-‏        body = body + "قربنا نوصل 100!"
-‏    elif len(all_users) >= 10:
-‏        body = body + "البوت بيكبر كل يوم!"
-‏    else:
-‏        body = body + "لسه في البداية، شارك البوت!"
-‏    return box("عدد مجربين البوت", body)
-‏
-‏def channels_text():
-‏    body = ""
-‏    body = body + "القنوات الناقلة\n"
-‏    body = body + "------------\n\n"
-‏    body = body + "beIN SPORTS\n"
-‏    body = body + "beIN 1 - انجليزي + ابطال\n"
-‏    body = body + "beIN 2 - فرنسي\n"
-‏    body = body + "beIN 3 - اسباني\n"
-‏    body = body + "beIN 4 - ايطالي\n"
-‏    body = body + "beIN 5 - الماني\n\n"
-‏    body = body + "ON Sport\n"
-‏    body = body + "ON 1 - الدوري المصري\n"
-‏    body = body + "ON 2 - الدوري المصري\n\n"
-‏    body = body + "SSC\n"
-‏    body = body + "SSC 1 - الدوري السعودي\n"
-‏    body = body + "SSC 2 - الدوري السعودي\n\n"
-‏    body = body + "الترددات:\n"
-‏    body = body + "beIN: 11013 افقي\n"
-‏    body = body + "ON: 11861 عمودي\n"
-‏    body = body + "SSC: 12523 عمودي"
-‏    return box("القنوات الناقلة", body)
-‏
-‏def menu(uid):
-‏    kb = []
-‏    kb.append([InlineKeyboardButton("مباريات الان", callback_data="live")])
-‏    kb.append([InlineKeyboardButton("ماتش اليوم", callback_data="match_day")])
-‏    kb.append([InlineKeyboardButton("مباريات اليوم", callback_data="today")])
-‏    kb.append([InlineKeyboardButton("مباريات الغد", callback_data="tomorrow")])
-‏    kb.append([InlineKeyboardButton("القنوات الناقلة", callback_data="channels")])
-‏    kb.append([InlineKeyboardButton("مسابقة يومية", callback_data="quiz")])
-‏    kb.append([InlineKeyboardButton("توقع واكسب 50 نقطة", callback_data="predict_game")])
-‏    kb.append([InlineKeyboardButton("جرب حظك", callback_data="luck")])
-‏    kb.append([InlineKeyboardButton("تنبيه الاهداف", callback_data="notify")])
-‏    kb.append([InlineKeyboardButton("افضل لاعب اليوم", callback_data="best_player")])
-‏    kb.append([InlineKeyboardButton("جدول الترتيب", callback_data="table")])
-‏    kb.append([InlineKeyboardButton("الهدافين", callback_data="scorers")])
-‏    kb.append([InlineKeyboardButton("ابحث عن لاعب", callback_data="player")])
-‏    kb.append([InlineKeyboardButton("فريقي المفضل", callback_data="fav")])
-‏    kb.append([InlineKeyboardButton("اخبار", callback_data="news")])
-‏    kb.append([InlineKeyboardButton("فانتازي", callback_data="fantasy")])
-‏    kb.append([InlineKeyboardButton("مكافأة يومية", callback_data="daily")])
-‏    kb.append([InlineKeyboardButton("لوحة الصدارة", callback_data="top")])
-‏    kb.append([InlineKeyboardButton("ابحث عن شخص", callback_data="find")])
-‏    kb.append([InlineKeyboardButton("التقييمات", callback_data="ratings")])
-‏    kb.append([InlineKeyboardButton("قيم البوت", callback_data="rate")])
-‏    kb.append([InlineKeyboardButton("عدد مجربين البوت", callback_data="users")])
-‏    kb.append([InlineKeyboardButton("تبرع بالنجوم", callback_data="donate")])
-‏    kb.append([InlineKeyboardButton("شارك البوت", callback_data="share")])
-‏    kb.append([InlineKeyboardButton("تواصل مع المطور", url="https://t.me/TRAN_5")])
-‏    if uid == OWNER_ID:
-‏        kb.append([InlineKeyboardButton("لوحة المالك", callback_data="owner")])
-‏    return InlineKeyboardMarkup(kb)
-‏
-‏def back():
-‏    kb = []
-‏    kb.append([InlineKeyboardButton("تحديث", callback_data="live")])
-‏    kb.append([InlineKeyboardButton("القايمة", callback_data="home")])
-‏    return InlineKeyboardMarkup(kb)
-‏
-‏def get_matches(lid, off):
-‏    try:
-‏        d = datetime.now(timezone.utc) + timedelta(days=off)
-‏        ds = d.strftime("%Y%m%d")
-‏        u = "https://site.api.espn.com/apis/site/v2/sports/soccer/"
-‏        u = u + lid + "/scoreboard?dates=" + ds
-‏        j = requests.get(u, timeout=6).json()
-‏        return j.get("events", [])
-‏    except:
-‏        return []
-‏
-‏def get_channel(lid):
-‏    if lid == "egy.1":
-‏        return "ON Sport 1"
-‏    if lid == "sau.1":
-‏        return "SSC 1"
-‏    if lid == "esp.1":
-‏        return "beIN 3"
-‏    if lid == "ita.1":
-‏        return "beIN 4"
-‏    if lid == "ger.1":
-‏        return "beIN 5"
-‏    if lid == "fra.1":
-‏        return "beIN 2"
-‏    return "beIN 1"
-‏
-‏def fmt(ev, lid):
-‏    try:
-‏        c = ev["competitions"][0]
-‏        h = c["competitors"][0]["team"]["displayName"]
-‏        a = c["competitors"][1]["team"]["displayName"]
-‏        h = ar_team(h)
-‏        a = ar_team(a)
-‏        hs = c["competitors"][0].get("score", "0")
-‏        aw = c["competitors"][1].get("score", "0")
-‏        st = c["status"]["type"]["state"]
-‏        clock = c["status"].get("displayClock", "")
-‏        if st == "in":
-‏            s = "جارية الان " + clock
-‏        elif st == "post":
-‏            s = "انتهت"
-‏        else:
-‏            s = "لم تبدأ بعد"
-‏        try:
-‏            dt = datetime.fromisoformat(ev["date"].replace("Z", "+00:00"))
-‏            egy = dt + timedelta(hours=2)
-‏            t = egy.strftime("%I:%M %p")
-‏            t = t.replace("AM", "صباحا")
-‏            t = t.replace("PM", "مساء")
-‏        except:
-‏            t = ""
-‏        ch = get_channel(lid)
-‏        line = h + " " + str(hs)
-‏        line = line + " - " + str(aw)
-‏        line = line + " " + a + "\n"
-‏        line = line + s + " | " + t + "\n"
-‏        line = line + "القناة: " + ch + "\n"
-‏        line = line + "------------\n"
-‏        return line
-‏    except:
-‏        return ""
-‏
-‏def all_text(off, only_live):
-‏    t = "مباريات اليوم\n"
-‏    if off == 1:
-‏        t = "مباريات الغد\n"
-‏    if only_live:
-‏        t = "المباريات الجارية الان\n"
-‏    now = datetime.now(timezone.utc) + timedelta(hours=2)
-‏    now_s = now.strftime("%I:%M %p")
-‏    now_s = now_s.replace("AM", "صباحا")
-‏    now_s = now_s.replace("PM", "مساء")
-‏    t = t + "اخر تحديث: "
-‏    t = t + now_s
-‏    t = t + " بتوقيت مصر\n"
-‏    t = t + "--------------\n\n"
-‏    for lid in LEAGUES:
-‏        name = LEAGUES[lid]
-‏        evs = get_matches(lid, off)
-‏        if only_live:
-‏            new_evs = []
-‏            for e in evs:
-‏                st2 = e["competitions"][0]["status"]["type"]["state"]
-‏                if st2 == "in":
-‏                    new_evs.append(e)
-‏            evs = new_evs
-‏        if evs:
-‏            t = t + name + "\n"
-‏            t = t + "------------\n"
-‏            for e in evs:
-‏                t = t + fmt(e, lid)
-‏    if t == "مباريات اليوم\n":
-‏        t = "مفيش مباريات دلوقتي"
-‏    t = t + "\nبوت عدي عمرو | @TRAN_5"
-‏    return t
-‏
-‏async def start(update, context):
-‏    u = update.effective_user
-‏    is_new = u.id not in all_users
-‏    all_users.add(u.id)
-‏    if u.id not in points:
-‏        points[u.id] = 5
-‏    else:
-‏        points[u.id] = points[u.id] + 5
-‏    if is_new and u.id != OWNER_ID:
-‏        try:
-‏            msg = "مستخدم جديد جرب البوت!\nالاسم: "
-‏            msg = msg + str(u.first_name)
-‏            msg = msg + "\nاليوزر: @"
-‏            msg = msg + str(u.username)
-‏            msg = msg + "\nاجمالي: "
-‏            msg = msg + str(len(all_users))
-‏            await context.bot.send_message(OWNER_ID, msg)
-‏        except:
-‏            pass
-‏    body = ""
-‏    body = body + "اهلا بيك يا " + str(u.first_name) + "\n"
-‏    body = body + "هذا بوت من صنع عدي عمرو\n"
-‏    body = body + "المطور: @TRAN_5\n\n"
-‏    body = body + "مميزات البوت:\n"
-‏    body = body + "نتائج مباشرة بتتحدث\n"
-‏    body = body + "القناة الناقلة لكل مباراة\n"
-‏    body = body + "مسابقة يومية و توقع واكسب\n"
-‏    body = body + "مواعيد بتوقيت مصر\n"
-‏    body = body + "جرب البوت: "
-‏    body = body + str(len(all_users))
-‏    body = body + " واحد\n"
-‏    body = body + "تقييم البوت: "
-‏    body = body + str(round(get_avg(), 1))
-‏    body = body + " من 5\n\n"
-‏    body = body + "خدت 5 نقط\nرصيدك: "
-‏    body = body + str(points[u.id])
-‏    txt = box("بوت عدي عمرو", body)
-‏    await update.message.reply_text(txt, reply_markup=menu(u.id))
-‏
-‏async def owner_cmd(update, context):
-‏    if update.effective_user.id != OWNER_ID:
-‏        await update.message.reply_text("انت مش المالك")
-‏        return
-‏    body = "اللي جربوا: "
-‏    body = body + str(len(all_users))
-‏    body = body + "\nالتقييمات: "
-‏    body = body + str(len(ratings))
-‏    body = body + "\nالمتوسط: "
-‏    body = body + str(round(get_avg(), 1))
-‏    body = body + "\nالتنبيهات: "
-‏    body = body + str(len(notify_users))
-‏    txt = box("لوحة المالك", body)
-‏    await update.message.reply_text(txt, reply_markup=menu(OWNER_ID))
-‏
-‏async def stats_cmd(update, context):
-‏    if update.effective_user.id != OWNER_ID:
-‏        return
-‏    txt = "اللي جربوا: "
-‏    txt = txt + str(len(all_users))
-‏    txt = txt + " | التقييمات: "
-‏    txt = txt + str(len(ratings))
-‏    await update.message.reply_text(txt)
-‏
-‏async def broadcast_cmd(update, context):
-‏    if update.effective_user.id != OWNER_ID:
-‏        return
-‏    msg = " ".join(context.args)
-‏    if not msg:
-‏        await update.message.reply_text("اكتب: /broadcast رسالتك")
-‏        return
-‏    sent = 0
-‏    for uid in list(all_users):
-‏        try:
-‏            m2 = "رسالة من عدي عمرو\n\n" + msg
-‏            await context.bot.send_message(uid, m2)
-‏            sent = sent + 1
-‏        except:
-‏            pass
-‏    await update.message.reply_text("بعت لـ " + str(sent) + " واحد")
-‏
-‏async def btn(update, context):
-‏    q = update.callback_query
-‏    await q.answer()
-‏    d = q.data
-‏    u = q.from_user
-‏    all_users.add(u.id)
-‏    if d == "home":
-‏        await q.message.reply_text("القايمة الرئيسية", reply_markup=menu(u.id))
-‏        return
-‏    if d == "live":
-‏        kb = []
-‏        kb.append([InlineKeyboardButton("تحديث الان", callback_data="live")])
-‏        kb.append([InlineKeyboardButton("الجارية فقط", callback_data="liveonly")])
-‏        kb.append([InlineKeyboardButton("القايمة", callback_data="home")])
-‏        txt = all_text(0, False)
-‏        await q.message.reply_text(txt, reply_markup=InlineKeyboardMarkup(kb))
-‏        return
-‏    if d == "liveonly":
-‏        txt = all_text(0, True)
-‏        await q.message.reply_text(txt, reply_markup=back())
-‏        return
-‏    if d == "today":
-‏        txt = all_text(0, False)
-‏        await q.message.reply_text(txt, reply_markup=back())
-‏        return
-‏    if d == "tomorrow":
-‏        txt = all_text(1, False)
-‏        await q.message.reply_text(txt, reply_markup=back())
-‏        return
-‏    if d == "match_day":
-‏        body = "ماتش اليوم\n\n"
-‏        body = body + "ليفربول ضد تشيلسي\n"
-‏        body = body + "الساعة: 6:30 مساء بتوقيت مصر\n"
-‏        body = body + "القناة: beIN 1\n"
-‏        body = body + "الملعب: انفيلد\n"
-‏        body = body + "توقعنا: فوز ليفربول 2-1\n\n"
-‏        body = body + "توقع انت كمان واكسب 50 نقطة!"
-‏        kb = []
-‏        kb.append([InlineKeyboardButton("توقع النتيجة", callback_data="predict_game")])
-‏        kb.append([InlineKeyboardButton("القايمة", callback_data="home")])
-‏        txt = box("ماتش اليوم", body)
-‏        await q.message.reply_text(txt, reply_markup=InlineKeyboardMarkup(kb))
-‏    elif d == "quiz":
-‏        qq = random.choice(QUIZ)
-‏        context.user_data["quiz_ans"] = qq[5]
-‏        kb = []
-‏        kb.append([InlineKeyboardButton(qq[1], callback_data="quiz_ans_0")])
-‏        kb.append([InlineKeyboardButton(qq[2], callback_data="quiz_ans_1")])
-‏        kb.append([InlineKeyboardButton(qq[3], callback_data="quiz_ans_2")])
-‏        kb.append([InlineKeyboardButton(qq[4], callback_data="quiz_ans_3")])
-‏        context.user_data["quiz_opts"] = [qq[1], qq[2], qq[3], qq[4]]
-‏        body = "سؤال اليوم\n\n"
-‏        body = body + qq[0]
-‏        body = body + "\n\nلو جاوبت صح هتاخد 30 نقطة!"
-‏        txt = box("مسابقة يومية", body)
-‏        await q.message.reply_text(txt, reply_markup=InlineKeyboardMarkup(kb))
-‏    elif d.startswith("quiz_ans_"):
-‏        idx = int(d.split("_")[2])
-‏        opts = context.user_data.get("quiz_opts", [])
-‏        ans = context.user_data.get("quiz_ans", "")
-‏        if idx < len(opts) and opts[idx] == ans:
-‏            if u.id not in points:
-‏                points[u.id] = 30
-‏            else:
-‏                points[u.id] = points[u.id] + 30
-‏            body = "صح يا بطل!\nخدت 30 نقطة\nرصيدك: "
-‏            body = body + str(points[u.id])
-‏            txt = box("اجابة صح", body)
-‏            await q.message.reply_text(txt, reply_markup=menu(u.id))
-‏        else:
-‏            body = "غلط\nالاجابة الصح: "
-‏            body = body + ans
-‏            txt = box("اجابة غلط", body)
-‏            await q.message.reply_text(txt, reply_markup=menu(u.id))
-‏    elif d == "predict_game":
-‏        kb = []
-‏        kb.append([InlineKeyboardButton("ليفربول هيكسب", callback_data="pred_home")])
-‏        kb.append([InlineKeyboardButton("تعادل", callback_data="pred_draw")])
-‏        kb.append([InlineKeyboardButton("تشيلسي هيكسب", callback_data="pred_away")])
-‏        body = "توقع واكسب\n\nماتش اليوم: ليفربول ضد تشيلسي\nلو توقعت صح هتاخد 50 نقطة"
-‏        txt = box("توقع واكسب", body)
-‏        await q.message.reply_text(txt, reply_markup=InlineKeyboardMarkup(kb))
-‏    elif d.startswith("pred_"):
-‏        predictions[u.id] = d
-‏        body = "تم تسجيل توقعك!\n"
-‏        body = body + "لو صح هتاخد 50 نقطة اول ما الماتش يخلص"
-‏        txt = box("تم التوقع", body)
-‏        await q.message.reply_text(txt, reply_markup=menu(u.id))
-‏    elif d == "luck":
-‏        num = random.randint(1, 10)
-‏        if num >= 8:
-‏            win = random.randint(10, 50)
-‏            if u.id not in points:
-‏                points[u.id] = win
-‏            else:
-‏                points[u.id] = points[u.id] + win
-‏            body = "يا بختك!\nكسبت "
-‏            body = body + str(win)
-‏            body = body + " نقطة\nرصيدك: "
-‏            body = body + str(points[u.id])
-‏            txt = box("جرب حظك", body)
-‏            await q.message.reply_text(txt, reply_markup=menu(u.id))
-‏        elif num >= 5:
-‏            body = "حظك متوسط\nجرب تاني كمان ساعة!"
-‏            txt = box("جرب حظك", body)
-‏            await q.message.reply_text(txt, reply_markup=menu(u.id))
-‏        else:
-‏            body = "معلش محصلش نصيب\nجرب تاني!"
-‏            txt = box("جرب حظك", body)
-‏            await q.message.reply_text(txt, reply_markup=menu(u.id))
-‏    elif d == "notify":
-‏        if u.id in notify_users:
-‏            notify_users.remove(u.id)
-‏            body = "قفلت تنبيه الاهداف"
-‏            txt = box("تنبيه الاهداف", body)
-‏            await q.message.reply_text(txt, reply_markup=menu(u.id))
-‏        else:
-‏            notify_users.add(u.id)
-‏            body = "فعلت تنبيه الاهداف!\nاول ما يجي جول هبعتلك على طول"
-‏            txt = box("تنبيه الاهداف", body)
-‏            await q.message.reply_text(txt, reply_markup=menu(u.id))
-‏    elif d == "best_player":
-‏        players_list = ["صلاح - ليفربول - سجل هدفين وعمل اسيست", "هالاند - مان سيتي - هاتريك", "مبابي - ريال مدريد - هدفين"]
-‏        best = random.choice(players_list)
-‏        body = "افضل لاعب اليوم\n\n"
-‏        body = body + best
-‏        body = body + "\n\nتقييمه: 9.5 من 10"
-‏        txt = box("افضل لاعب", body)
-‏        await q.message.reply_text(txt, reply_markup=menu(u.id))
-‏    elif d == "channels":
-‏        kb = []
-‏        kb.append([InlineKeyboardButton("beIN SPORTS", callback_data="ch_bein")])
-    if w == "find_person":
-        if "TRAN" in t.upper():
-            txt = box("لقيته!", "المطور عدي عمرو @TRAN_5")
-            await update.message.reply_text(txt)
-        elif "عدي" in t:
-            txt = box("لقيته!", "المطور عدي عمرو @TRAN_5")
-            await update.message.reply_text(txt)
-        else:
-            txt = box("جاري البحث", "بدور على " + t)
-            await update.message.reply_text(txt)
-        context.user_data["w"] = None
-        return
-    await update.message.reply_text("اكتب /start", reply_markup=menu(u.id))
+import os, random, requests
+from datetime import datetime, timedelta
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes, MessageHandler, filters
+
+TOKEN = os.getenv("BOT_TOKEN")
+
+# ========== الموقع اللي بنسحب منه ⚽ ==========
+# TheSportsDB - مجاني ومن غير مفتاح
+# لو الموقع وقع، البوت هيرجع للمواعيد القديمة تلقائي
+LEAGUES = {
+    "egypt": {"id": "4597", "name": "🇪🇬 الدوري المصري", "emoji": "🇪🇬"},
+    "england": {"id": "4328", "name": "🏴󐁧󐁢󐁥󐁮󐁧󐁿 الدوري الإنجليزي", "emoji": "🏴󐁧󐁢󐁥󐁮󐁧󐁿"},
+    "spain": {"id": "4335", "name": "🇪🇸 الدوري الإسباني", "emoji": "🇪🇸"},
+    "champions": {"id": "4480", "name": "🏆 دوري الأبطال", "emoji": "🏆"},
+    "italy": {"id": "4332", "name": "🇮🇹 الدوري الإيطالي", "emoji": "🇮🇹"},
+    "germany": {"id": "4331", "name": "🇩🇪 الدوري الألماني", "emoji": "🇩🇪"},
+    "saudi": {"id": "4839", "name": "🇸🇦 الدوري السعودي", "emoji": "🇸🇦"},
+}
+
+# مواعيد احتياطية لو النت وقع
+FALLBACK = {
+    "egypt": [("⚽ الأهلي 🆚 الزمالك", "🕗 8:00 م | 📺 ON Time")],
+    "england": [("⚽ ليفربول 🆚 مان سيتي", "🕙 10:00 م | 📺 beIN")],
+    "spain": [("⚽ ريال مدريد 🆚 برشلونة", "🕙 10:00 م | 📺 beIN")],
+    "champions": [("⚽ ريال مدريد 🆚 بايرن", "🕙 10:00 م")],
+    "italy": [("⚽ إنتر 🆚 ميلان", "🕙 9:45 م")],
+    "germany": [("⚽ بايرن 🆚 دورتموند", "🕢 7:30 م")],
+    "saudi": [("⚽ الهلال 🆚 النصر", "🕗 8:00 م")],
+}
+
+# كاش عشان منضربش الموقع كل ثانية
+CACHE = {}
+CACHE_TIME = {}
+
+def fetch_from_site(league_id):
+    """بيسحب الماتشات الجاية من الموقع"""
+    try:
+        # 1. الماتشات الجاية
+        url = f"https://www.thesportsdb.com/api/v1/json/3/eventsnextleague.php?id={league_id}"
+        r = requests.get(url, timeout=10)
+        data = r.json()
+        events = data.get("events", []) or []
+        result = []
+        for e in events[:8]:
+            home = e.get("strHomeTeam", "?")
+            away = e.get("strAwayTeam", "?")
+            date = e.get("dateEvent", "")
+            time = e.get("strTime", "")[:5] if e.get("strTime") else ""
+            status = e.get("strStatus", "")
+            venue = e.get("strVenue", "")
+            score_home = e.get("intHomeScore")
+            score_away = e.get("intAwayScore")
+            if score_home is not None and score_away is not None:
+                score = f" | 🔴 {score_home} - {score_away} {status}"
+            else:
+                score = ""
+            result.append((f"⚽ {home} 🆚 {away}", f"🗓️ {date} | 🕗 {time}{score}\n🏟️ {venue}"))
+        if result:
+            return result
+    except Exception as ex:
+        print(f"Site error: {ex}")
+    return []
+
+def fetch_live():
+    """بيسحب الماتشات اللي شغالة دلوقتي"""
+    try:
+        r = requests.get("https://www.thesportsdb.com/api/v1/json/3/livescore.php?l=4328&l=4335&l=4480&l=4597&s=Soccer", timeout=10)
+        data = r.json()
+        events = data.get("events", []) or []
+        result = []
+        for e in events[:10]:
+            home = e.get("strHomeTeam"); away = e.get("strAwayTeam")
+            sh = e.get("intHomeScore"); sa = e.get("intAwayScore")
+            prog = e.get("strProgress", "")
+            result.append((f"🔴 LIVE {home} {sh} - {sa} {away}", f"⏱️ الدقيقة: {prog} | 🏆 {e.get('strLeague')}"))
+        return result
+    except:
+        return []
+
+def get_matches(league_key):
+    # لو لسه جايبينها من أقل من 5 دقايق، رجع الكاش
+    now = datetime.now()
+    if league_key in CACHE and (now - CACHE_TIME.get(league_key, now)).seconds < 300:
+        return CACHE[league_key]
+    live = fetch_from_site(LEAGUES[league_key]["id"])
+    if not live:
+        live = FALLBACK.get(league_key, [])
+    CACHE[league_key] = live
+    CACHE_TIME[league_key] = now
+    return live
+
+# ========== باقي البوت ==========
+MODS = {
+    "gold": {"name": "🖤💛 ذهبي", "emoji": "👑", "welcome": "أهلا بيك في النسخة الذهبية 👑✨"},
+    "neon": {"name": "💜⚡ نيون", "emoji": "⚡", "welcome": "أهلا بيك في عالم النيون 💜⚡"},
+    "fire": {"name": "🔥 ناري", "emoji": "🔥", "welcome": "ولعهااا 🔥"},
+    "ice": {"name": "💙🧊 ثلجي", "emoji": "🧊", "welcome": "أهلا بيك في المود الثلجي 💙🧊"},
+}
+user_mod = {}; user_score = {}
+def get_mod(uid): return MODS.get(user_mod.get(uid, "gold"))
+
+PLAYERS = {
+    "salah": "🇪🇬 **محمد صلاح** 👑\n🏟️ ليفربول | 📍 جناح أيمن\n⚡ سرعة 93 | 🎯 فينيش 95\n💪 المميز: بيقطع لجوه ويشوط بالشمال\n🏆 أبطال + دوري إنجليزي",
+    "messi": "🇦🇷 **ميسي** 🐐\n🏟️ إنتر ميامي | 📍 صانع لعب\n⚡ مهارة 99 | 🎯 تمرير 98\n🏆 كاس عالم 2022 + 8 كرات ذهبية",
+    "ronaldo": "🇵🇹 **رونالدو** 👑\n🏟️ النصر | 📍 مهاجم\n⚡ قوة 98 | 🎯 راسيات 99\n🏆 5 كرات ذهبية + 5 أبطال",
+    "haaland": "🇳🇴 **هالاند** 🤖\n🏟️ مان سيتي | 📍 مهاجم\n⚡ سرعة 95 | 🎯 فينيش 99",
+    "mbappe": "🇫🇷 **مبابي** 🚀\n🏟️ ريال مدريد | 📍 مهاجم\n⚡ سرعة 99 | 🎯 فينيش 94",
+    "bellingham": "🏴󐁧󐁢󐁥󐁮󐁧󐁿 **بيلينجهام** 💎\n🏟️ ريال مدريد | 📍 وسط هجومي\n⚡ مهارة 92 | 🎯 تمرير 93",
+    "vinicius": "🇧🇷 **فينيسيوس** ⚡\n🏟️ ريال مدريد | 📍 جناح أيسر\n⚡ سرعة 97 | 👟 مراوغة 96",
+    "pedri": "🇪🇸 **بيدري** 🧠\n🏟️ برشلونة | 📍 وسط\n⚡ تمرير 96 | 👁️ رؤية 95",
+}
+PRO_QUIZ = [
+    {"q": "🧠 مين أكتر لاعب سجل في تاريخ دوري الأبطال؟", "opts": ["ميسي", "رونالدو", "بنزيما", "هالاند"], "ans": 1},
+    {"q": "🧠 امتى بيتحسب التسلل؟", "opts": ["لما يعدي نص الملعب", "لما يكون أقرب للجون من آخر مدافع وقت التمرير", "لما يلمسها بإيده", "لما يرجع لورا"], "ans": 1},
+    {"q": "🧠 مين فاز بكاس العالم 2022؟", "opts": ["فرنسا", "البرازيل", "الأرجنتين", "إنجلترا"], "ans": 2},
+    {"q": "🧠 يعني إيه خطة 4-3-3؟", "opts": ["4 دفاع 3 وسط 3 هجوم", "4 هجوم 3 دفاع", "4 حراس", "4 مهاجمين"], "ans": 0},
+    {"q": "🧠 مين أكتر فريق كسب دوري أبطال؟", "opts": ["برشلونة", "ميلان", "ريال مدريد", "بايرن"], "ans": 2},
+]
+BASICS = {
+    "positions": "📚 **مراكز اللاعيبة**\n🧤 حارس | 🛡️ مدافع | ⚙️ وسط | ⚽ مهاجم",
+    "offside": "📚 **التسلل**\n❌ متسلل لو كنت أقرب للجون من آخر مدافع وقت التمرير\n✅ مش متسلل لو من الخصم / في نص ملعبك / من رمية تماس",
+    "rules": "📚 **قواعد**\n⏱️ 90 دقيقة | 🟨 إنذارين = طرد | ⚽ مينفعش إيدك إلا الحارس",
+    "tips": "📚 **تبقى محترف**\n1. ارفع راسك قبل التمرير\n2. اتحرك من غير كورة\n3. أول لمسة أهم حاجة\n4. اتمرن على رجلك الضعيفة",
+    "formations": "📚 **التشكيلات**\n🔥 4-3-3 هجومي | 🛡️ 4-4-2 متوازن | 🧠 4-2-3-1 سيطرة",
+    "tactics": "📚 **الخطط**\n🔥 ضغط عالي | 🚌 الباص | 🎯 استحواذ | ⚡ مرتدات",
+    "training": "📚 **تمارين في البيت**\n🏃 جري 10 دقايق | 🦶 كنترول 50 مرة | 🎯 تمرير على الحيطة 100 مرة",
+}
+DAILY_TIPS = [
+    "💡 نصيحة اليوم: أول لمسة هي اللي بتفرق بين لاعب عادي ومحترف.",
+    "💡 نصيحة اليوم: متجريش ورا الكورة، اجري في المساحة الفاضية.",
+    "💡 نصيحة اليوم: اللاعب المحترف بيعرف هيعمل ايه قبل ما الكورة توصله.",
+]
+
+def main_keyboard(mod):
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton(f"{mod['emoji']} القائمة الرئيسية 📋", callback_data="menu")],
+        [InlineKeyboardButton("🔴 ماتشات لايف NOW", callback_data="live")],
+        [InlineKeyboardButton("⚽ الكورة ومواعيدها 🏆", callback_data="football")],
+        [InlineKeyboardButton("⭐ اللاعيبة", callback_data="players")],
+        [InlineKeyboardButton("🧠 أسئلة المحترفين", callback_data="quiz_start"), InlineKeyboardButton("📚 مبادئ الكورة", callback_data="basics")],
+        [InlineKeyboardButton("⚔️ قارن", callback_data="compare"), InlineKeyboardButton("💡 نصيحة اليوم", callback_data="tip")],
+        [InlineKeyboardButton("🎨 تغيير المود", callback_data="mods")],
+    ])
+def football_keyboard():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("🔴 لايف دلوقتي", callback_data="live")],
+        [InlineKeyboardButton("🇪🇬 مصري", callback_data="match_egypt"), InlineKeyboardButton("🏴󐁧󐁢󐁥󐁮󐁧󐁿 إنجليزي", callback_data="match_england")],
+        [InlineKeyboardButton("🇪🇸 إسباني", callback_data="match_spain"), InlineKeyboardButton("🏆 أبطال", callback_data="match_champions")],
+        [InlineKeyboardButton("🇮🇹 إيطالي", callback_data="match_italy"), InlineKeyboardButton("🇩🇪 ألماني", callback_data="match_germany")],
+        [InlineKeyboardButton("🇸🇦 سعودي", callback_data="match_saudi")],
+        [InlineKeyboardButton("🔄 تحديث", callback_data="football"), InlineKeyboardButton("🔙 رجوع", callback_data="menu")],
+    ])
+def players_keyboard():
+    keys = list(PLAYERS.keys())
+    btns = [[InlineKeyboardButton(f"⭐ {k}", callback_data=f"player_{k}") for k in keys[i:i+2]] for i in range(0, len(keys), 2)]
+    btns.append([InlineKeyboardButton("🔙 رجوع", callback_data="menu")])
+    return InlineKeyboardMarkup(btns)
+def basics_keyboard():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("📍 المراكز", callback_data="basic_positions"), InlineKeyboardButton("🚩 التسلل", callback_data="basic_offside")],
+        [InlineKeyboardButton("📜 القواعد", callback_data="basic_rules"), InlineKeyboardButton("💡 محترف", callback_data="basic_tips")],
+        [InlineKeyboardButton("📐 التشكيلات", callback_data="basic_formations"), InlineKeyboardButton("🧠 الخطط", callback_data="basic_tactics")],
+        [InlineKeyboardButton("🏋️ تمارين", callback_data="basic_training")],
+        [InlineKeyboardButton("🔙 رجوع", callback_data="menu")],
+    ])
+def mods_keyboard():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("🖤💛 ذهبي", callback_data="set_gold"), InlineKeyboardButton("💜⚡ نيون", callback_data="set_neon")],
+        [InlineKeyboardButton("🔥 ناري", callback_data="set_fire"), InlineKeyboardButton("💙🧊 ثلجي", callback_data="set_ice")],
+        [InlineKeyboardButton("🔙 رجوع", callback_data="menu")],
+    ])
+def format_matches(title, lst):
+    txt = f"{title}\n━━━━━━━━━━━━━━━\n🌐 بتتحدث من الموقع تلقائي\n━━━━━━━━━━━━━━━\n\n"
+    if not lst: txt += "مفيش ماتشات دلوقتي، جرب بعد شوية ⚽\n"
+    for m, d in lst: txt += f"{m}\n{d}\n\n"
+    return txt + "━━━━━━━━━━━━━━━\n🔄 دوس تحديث عشان تجيب الجديد"
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    mod = get_mod(update.effective_user.id)
+    text = f"{mod['welcome']}\n\n👋 أهلا بيك يا {update.effective_user.first_name} !\n⚽ كورة لايف من الموقع + ⭐ لاعيبة + 🧠 أسئلة + 📚 مبادئ\n🎨 المود: {mod['name']}\n\n👇 اختار:"
+    if update.message: await update.message.reply_text(text, reply_markup=main_keyboard(mod))
+    else: await update.callback_query.edit_message_text(text, reply_markup=main_keyboard(mod))
+
+async def send_quiz(q, uid):
+    idx = user_score.get(uid, {}).get("idx", 0); score = user_score.get(uid, {}).get("score", 0)
+    if idx >= len(PRO_QUIZ):
+        txt = f"🏁 خلصت! ⭐ نتيجتك: {score}/{len(PRO_QUIZ)}\n"
+        txt += "🏆 محترف بجد!" if score >= 4 else "📚 راجع المبادئ"
+        await q.edit_message_text(txt, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔁 تاني", callback_data="quiz_start")],[InlineKeyboardButton("🔙 القايمة", callback_data="menu")]])); return
+    item = PRO_QUIZ[idx]
+    kb = InlineKeyboardMarkup([[InlineKeyboardButton(opt, callback_data=f"quiz_ans_{i}")] for i, opt in enumerate(item["opts"])])
+    await q.edit_message_text(f"🧠 سؤال {idx+1}/{len(PRO_QUIZ)} | ⭐ {score}\n\n{item['q']}", reply_markup=kb)
+
+async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    q = update.callback_query; await q.answer(); uid = q.from_user.id; mod = get_mod(uid); data = q.data
+    if data == "menu": await start(update, context); return
+    if data == "mods": await q.edit_message_text("🎨 اختار المود 👇", reply_markup=mods_keyboard()); return
+    if data.startswith("set_"):
+        user_mod[uid] = data.replace("set_", ""); mod = get_mod(uid)
+        await q.edit_message_text(f"✅ تم! المود: {mod['name']}", reply_markup=main_keyboard(mod)); return
+    if data == "live":
+        await q.edit_message_text("⏳ بجيب الماتشات اللايف من الموقع...")
+        live = fetch_live()
+        await q.edit_message_text(format_matches("🔴⚽ ماتشات لايف دلوقتي", live), reply_markup=football_keyboard()); return
+    if data == "football": await q.edit_message_text("⚽🏆 قسم الكورة - بتتحدث من الموقع تلقائي 🌐\nاختار الدوري 👇", reply_markup=football_keyboard()); return
+    if data.startswith("match_"):
+        key = data.replace("match_", "")
+        if key in LEAGUES:
+            await q.edit_message_text("⏳ بجيب المواعيد من الموقع...")
+            lst = get_matches(key)
+            await q.edit_message_text(format_matches(f"{LEAGUES[key]['name']} - مواعيد محدثة 🌐", lst), reply_markup=football_keyboard()); return
+    if data == "players": await q.edit_message_text("⭐ اختار اللاعب 👇", reply_markup=players_keyboard()); return
+    if data.startswith("player_"): await q.edit_message_text(PLAYERS.get(data.replace("player_", ""), ""), reply_markup=players_keyboard()); return
+    if data == "quiz_start": user_score[uid] = {"idx": 0, "score": 0}; await send_quiz(q, uid); return
+    if data.startswith("quiz_ans_"):
+        chosen = int(data.replace("quiz_ans_", "")); st = user_score.get(uid, {"idx": 0, "score": 0})
+        correct = PRO_QUIZ[st["idx"]]["ans"]
+        fb = "✅ صح! 🔥" if chosen == correct else f"❌ غلط! الصح: {PRO_QUIZ[st['idx']]['opts'][correct]}"
+        if chosen == correct: st["score"] += 1
+        st["idx"] += 1; user_score[uid] = st
+        await q.edit_message_text(f"{fb}\n\nدوس التالي 👇", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("➡️ اللي بعده", callback_data="quiz_next")]])); return
+    if data == "quiz_next": await send_quiz(q, uid); return
+    if data == "basics": await q.edit_message_text("📚 مبادئ الكورة 👇", reply_markup=basics_keyboard()); return
+    if data.startswith("basic_"): await q.edit_message_text(BASICS.get(data.replace("basic_", ""), ""), reply_markup=basics_keyboard()); return
+    if data == "tip": await q.edit_message_text(f"{random.choice(DAILY_TIPS)}", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("💡 نصيحة تانية", callback_data="tip")],[InlineKeyboardButton("🔙 القايمة", callback_data="menu")]])); return
+    if data == "compare": await q.edit_message_text("⚔️ اكتبلي في الشات: `قارن صلاح ومبابي`", reply_markup=main_keyboard(mod)); return
+
+async def txt_h(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    mod = get_mod(update.effective_user.id)
+    await update.message.reply_text(f"{mod['emoji']} وصلت: {update.message.text} ✅\nجرب /start", reply_markup=main_keyboard(mod))
 
 def main():
     app = Application.builder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("owner", owner_cmd))
-    app.add_handler(CommandHandler("stats", stats_cmd))
-    app.add_handler(CommandHandler("broadcast", broadcast_cmd))
-    app.add_handler(CallbackQueryHandler(btn))
-    app.add_handler(PreCheckoutQueryHandler(precheckout))
-    app.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, pay_ok))
+    app.add_handler(CommandHandler("matches", start))
+    app.add_handler(CommandHandler("live", start))
+    app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, txt_h))
+    print("Bot running LIVE from site ⚽🌐")
     app.run_polling()
-
 if __name__ == "__main__":
     main()
