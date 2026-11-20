@@ -1,8 +1,17 @@
+
 import os, requests, telebot
 from datetime import date, timedelta
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
+from flask import Flask
+from threading import Thread
+
+app = Flask(__name__)
 b = telebot.TeleBot(os.environ.get("TOKEN"))
 A = "https://www.thesportsdb.com/api/v1/json/3"
+
+@app.route('/')
+def home():
+    return "Bot is Running!"
 
 def kb():
     k = InlineKeyboardMarkup(row_width=2)
@@ -39,7 +48,7 @@ def send_day(chat_id, day):
 
 @b.message_handler(commands=['start'])
 def start(m):
-    b.send_message(m.chat.id, "بوت الكورة العالمي 🌍⚽🔥\n\nكل مواعيد الماتشات من كل الدول في مكان واحد\nاختار من الزراير 👇", reply_markup=kb())
+    b.send_message(m.chat.id, "بوت الكورة العالمي 🌍⚽🔥\n\nكل مواعيد الماتشات من كل الدول\nاختار من الزراير 👇", reply_markup=kb())
 
 @b.callback_query_handler(func=lambda c: True)
 def cb(c):
@@ -78,4 +87,10 @@ def cb(c):
             send_day(chat, (date.today()+timedelta(days=i)).strftime("%Y-%m-%d"))
         b.send_message(chat, "دي كل الماتشات 👇", reply_markup=kb())
 
-b.infinity_polling()
+def run_bot():
+    b.infinity_polling()
+
+Thread(target=run_bot).start()
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 10000)))
