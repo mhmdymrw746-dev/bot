@@ -8,7 +8,7 @@ import telebot, random, json, os, time
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 from datetime import date
 
-TOKEN = "حط_التوكن_بتاعك_هنا"
+TOKEN = os.getenv("TOKEN")
 bot = telebot.TeleBot(TOKEN)
 OWNER_ID = 8188263997
 
