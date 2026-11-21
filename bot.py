@@ -296,7 +296,7 @@ def الزراير(call):
     elif data.startswith("اشتغل_"):
         مرتب=int(data.split("_")[1]); الان=time.time()
         if الان - اخر_شغل.get(uid,0) < 60:
-            bot.answer_callback_query(call.id, f"استنى {int(60-(الان-اخر_شغل[uid])))} ثانية 😅"); return
+            bot.answer_callback_query(call.id, f"استنى {int(60-(الان-اخر_شغل[uid]))} ثانية 😅"); return
         اخر_شغل[uid]=الان; فلوس[uid]=هات_فلوس(uid)+مرتب; حفظ()
         bot.edit_message_text(f"💼 اشتغلت وخدت +{مرتب} جنيه 🔥\n💰 معاك: {فلوس[uid]}", chat_id, call.message.message_id, reply_markup=زرار_رجوع())
 
