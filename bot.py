@@ -1,1042 +1,1348 @@
-# ============================================================
-# BOT FINAL MERGED - V3 + FIX + 1000 LINE - NO ERRORS
-# مدمج: القديم + تصليح اليانصيب + انظمة جديدة 700 سطر
-# ============================================================
-import os, json, time, random, traceback, datetime, urllib.request, math
-from threading import Thread
-from http.server import HTTPServer, BaseHTTPRequestHandler
-import telebot
-from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
-
-class Handler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        self.send_response(200); self.end_headers(); self.wfile.write(b"Bot is alive MERGED!")
-    def log_message(self, *a): pass
-def keep_alive():
+# PART 1/10 - 1000 LINE - BOT START
+import json, random, time, os
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
+TOKEN="PUT_YOUR_TOKEN_HERE"
+DATA_FILE="data.json"
+def load_data():
+    if not os.path.exists(DATA_FILE): return {"users":{}}
     try:
-        port = int(os.environ.get("PORT", 10000))
-        Thread(target=HTTPServer(("0.0.0.0", port), Handler).serve_forever, daemon=True).start()
-    except: pass
-keep_alive()
-def self_ping():
-    while True:
-        time.sleep(240)
-        url = os.environ.get("RENDER_EXTERNAL_URL")
-        if url:
-            try: urllib.request.urlopen(url, timeout=10)
-            except: pass
-Thread(target=self_ping, daemon=True).start()
-TOKEN = os.environ.get("TOKEN")
-OWNER_ID = int(os.environ.get("OWNER_ID", "8188263997"))
-bot = telebot.TeleBot(TOKEN)
-
-def load_json(f, default):
-    if os.path.exists(f):
-        try:
-            with open(f, encoding="utf-8") as x: return json.load(x)
-        except: return default
-    return default
-def save_json(f, d):
-    try:
-        with open(f+".tmp", "w", encoding="utf-8") as x: json.dump(d, x, ensure_ascii=False, indent=2)
-        os.replace(f+".tmp", f)
-    except: pass
-data = load_json("data.json", {})
-settings = load_json("settings.json", {"maintenance": False, "banned": [], "lottery": [], "jackpot": 10000, "clans": {}, "auction": [], "last_lottery": 0, "total_users": 0})
-def save(): save_json("data.json", data)
-def save_settings(): save_json("settings.json", settings)
-pending = {}
-
-# ========== توليد مميزات مبتخلصش ==========
-WEAPONS = {}
-for i in range(1, 101):
-    WEAPONS[f"w{i}"] = (f"{['🔪','🔫','💣','🚀','⚔️','🏹','🗡️','🔨','🪓','💎'][i%10]} سلاح {i}", i*100, i*5)
-PETS = {}
-PET_NAMES = ["🐉 تنين","🦁 أسد","🦅 نسر","🐱 قطة","🐶 كلب","🐯 نمر","🦊 ثعلب","🐺 ذئب","🦄 يونيكورن","🐲 دراجون","🦖 ديناصور","🐘 فيل","🦒 زرافة","🐻 دب","🦁 أسد ذهبي"]
-for i in range(1, 101):
-    PETS[f"pet{i}"] = (f"{PET_NAMES[i%len(PET_NAMES)]} {i}", 100+i*50, 10+i*5)
-HOUSES = {}
-for i in range(1, 101): HOUSES[f"h{i}"] = (f"🏠 بيت {i}", 10000+i*5000, 100+i*100)
-CARS = {}
-for i in range(1, 101): CARS[f"c{i}"] = (f"{['🚕','🚗','🏎️','🚙','🚌','🚚','🏍️','🚁','✈️','🛥️'][i%10]} عربية {i}", 5000+i*3000, 50+i*50)
-BUSINESS = {}
-for i in range(1, 101): BUSINESS[f"b{i}"] = (f"{['🏪 محل','🍔 مطعم','☕ قهوة','🏢 شركة','🏥 مستشفى','🏫 مدرسة','🏨 فندق','🎮 سايبر','💈 صالون','🏦 بنك'][i%10]} {i}", 5000+i*2000, 100+i*80)
-TASKS = []
-for i in range(1, 501): TASKS.append((f"مهمة {i}", 50 + (i%10)*50))
-CODES = {}
-for i in range(1, 101): CODES[f"CODE{i}"] = 500*i
-CODES.update({"WELCOME100":500,"MEGA500":2000,"BOSS1000":5000,"ADI2026":10000,"DRAGON":3000,"HOUSE2026":20000,"VIP999":50000,"MILLION":100000})
-MARKET = {}
-for i in range(1, 51): MARKET[f"coin{i}"] = {"name": f"{['₿ بيتكوين','Ξ ايثريوم','🥇 ذهب','💵 دولار','🛢️ بترول','💎 الماس','🪙 دوج','🐶 شيبا','📈 سهم','🏦 بنك'][i%10]} {i}", "price": 50+i*30}
-MARKET.update({"btc":{"name":"₿ بيتكوين","price":800},"eth":{"name":"Ξ ايثريوم","price":300},"gold":{"name":"🥇 ذهب","price":150}})
-
-def update_market_loop():
-    while True:
-        time.sleep(30)
-        try:
-            for k in MARKET: MARKET[k]["price"]=max(20, MARKET[k]["price"]+random.randint(-40,60))
-        except: pass
-Thread(target=update_market_loop, daemon=True).start()
-def auto_lottery():
-    while True:
-        time.sleep(3600)
-        try:
-            if time.time() - settings.get("last_lottery",0) > 86400 and settings.get("lottery"):
-                winner=random.choice(settings["lottery"]); prize=settings.get("jackpot",10000); w=user(int(winner)); w["money"]+=prize; settings["lottery"]=[]; settings["jackpot"]=10000; settings["last_lottery"]=int(time.time()); save(); save_settings()
-                for k in list(data.keys()):
-                    try: bot.send_message(int(k), f"💎 سحب اليانصيب اليومي!\n🏆 الفايز: {w.get('name')} كسب {prize}!")
-                    except: pass
-        except: pass
-Thread(target=auto_lottery, daemon=True).start()
-
-def user(uid):
-    uid = str(uid)
-    if uid not in data:
-        data[uid] = {"money":500,"name":"مستخدم","level":1,"xp":0,"vip":False,"vip_until":0,"weapons":[],"daily":0,"spin":0,"gift":0,"streak":0,"score":0,"codes":[],"items":[],"portfolio":{},"bank":0,"bank_current":0,"bank_saving":0,"bank_history":[],"certificates":[],"credit_limit":5000,"credit_used":0,"iban":"","overdraft":0,"steal":0,"lottery_tickets":0,"loans":[],"invest":0,"gold_box":0,"last_challenge":0,"pets":[],"clan":None,"wins":0,"losses":0,"gold_spin":0,"guess_num":0,"house":None,"car":None,"business":None,"staking":0,"vip_daily":0,"clan_war_cd":0,"job":None,"job_time":0,"married":None,"energy":100,"last_energy":0,"quiz_score":0,"roulette_cd":0,"blackjack_cd":0}
-        save()
-    defaults = {"money":500,"level":1,"xp":0,"vip":False,"vip_until":0,"weapons":[],"daily":0,"spin":0,"gift":0,"streak":0,"score":0,"codes":[],"items":[],"portfolio":{},"bank":0,"bank_current":0,"bank_saving":0,"bank_history":[],"certificates":[],"credit_limit":5000,"credit_used":0,"iban":"","overdraft":0,"steal":0,"lottery_tickets":0,"loans":[],"invest":0,"gold_box":0,"last_challenge":0,"pets":[],"clan":None,"wins":0,"losses":0,"gold_spin":0,"guess_num":0,"name":"مستخدم","house":None,"car":None,"business":None,"staking":0,"vip_daily":0,"clan_war_cd":0,"job":None,"job_time":0,"married":None,"energy":100,"last_energy":0,"quiz_score":0,"roulette_cd":0,"blackjack_cd":0}
-    for k,v in defaults.items():
-        if k not in data[uid]: data[uid][k]=v
-    if data[uid].get("vip_until",0) and time.time() > data[uid]["vip_until"] and data[uid]["vip_until"]!=0:
-        data[uid]["vip"]=False; data[uid]["vip_until"]=0
-    return data[uid]
-def is_owner(uid): return int(uid)==OWNER_ID
-def is_banned(uid): return str(uid) in settings.get("banned",[])
-def is_vip(u): return u.get("vip",False)
-def add(uid, amount):
-    u=user(uid); mult = 3 if is_vip(u) else 1; amount = amount * mult
-    u["money"]+=amount; u["xp"]+=amount//5; u["score"]+=amount
-    if u.get("loans"):
-        now2 = int(time.time())
-        for ln in u.get("loans",[]):
-            days2 = (now2 - ln.get("time", now2)) // 86400
-            if days2 >= 3 and u["money"] > 0:
-                cut = min(int(amount * 0.50), u["money"])
-                if cut>0:
-                    u["money"] -= cut; ln["amount"] = max(0, ln["amount"] - cut)
-                    try: bot.send_message(uid, f"🏦 البنك خصم {cut} غصب عشان القرض متأخر {days2} يوم!")
-                    except: pass
-                break
-    lvl=u["xp"]//100+1
-    if lvl>u["level"]:
-        u["level"]=lvl; bonus=lvl*200; u["money"]+=bonus
-        try: bot.send_message(uid, f"🎉 مستوى جديد! وصلت {lvl} 🔥\n🎁 هدية: +{bonus}")
-        except: pass
-    save(); return amount
-def get_rank(money):
-    if money >= 1000000: return "👑 إمبراطور الكون"
-    if money >= 500000: return "👑 إمبراطور"
-    if money >= 200000: return "💎 ملياردير"
-    if money >= 100000: return "🏆 مليونير"
-    if money >= 50000: return "💰 غني جدا"
-    if money >= 20000: return "🤑 غني"
-    if money >= 5000: return "🙂 متوسط"
-    if money >= 1000: return "🌱 عادي"
-    return "🥺 فقير"
-def add_history(uid_str, text):
-    uu = user(int(uid_str)); h = uu.get("bank_history", [])
-    h.append(f"{time.strftime('%d/%m %H:%M')} - {text}"); uu["bank_history"] = h[-20:]; save()
-def check_loan_penalty(u):
-    loans = u.get("loans", [])
-    if not loans: return None
-    now = int(time.time()); msg=None
-    for ln in loans:
-        days = (now - ln.get("time", now)) // 86400
-        if days >= 7: msg="🔒 محظور"
-        elif days >= 3: msg="🚨 متأخر 3 أيام"
-        elif days >= 1: msg="⏰ متأخر يوم"
-    return msg
-def get_loan_pay_amount(ln):
-    now = int(time.time()); days = (now - ln.get("time", now)) // 86400
-    if days >= 7: rate=0.50
-    elif days >= 3: rate=0.30
-    elif days >= 1: rate=0.20
-    else: rate=0.10
-    return int(ln["amount"]*(1+rate)), rate, days
-def portfolio_value(u): return sum(qty*MARKET[k]["price"] for k,qty in u.get("portfolio",{}).items() if k in MARKET)
-def power(u): return sum(WEAPONS[w][2] for w in u.get("weapons",[]) if w in WEAPONS) + sum(PETS[p][2] for p in u.get("pets",[]) if p in PETS)
-def pet_income(u): return sum(PETS[p][2] for p in u.get("pets",[]) if p in PETS)
-def daily_income(u):
-    total = pet_income(u)
-    if u.get("house") in HOUSES: total += HOUSES[u["house"]][2]
-    if u.get("car") in CARS: total += CARS[u["car"]][2]
-    if u.get("business") in BUSINESS: total += BUSINESS[u["business"]][2]
-    if u.get("job"): total += 500
-    return total
-def lvl_emoji(l):
-    if l>=20: return "👑"
-    if l>=15: return "💎"
-    if l>=10: return "⭐"
-    if l>=5: return "🌟"
-    return "🌱"
-def total_wealth(u): return u["money"]+portfolio_value(u)+u.get("bank",0)+u.get("bank_current",0)+u.get("bank_saving",0)+u.get("invest",0)+sum(c["amount"] for c in u.get("certificates",[]))+u.get("staking",0)
-JOBS = {"doctor":("👨‍⚕️ دكتور",2000),"engineer":("👨‍💻 مهندس",1500),"teacher":("👨‍🏫 مدرس",1000),"police":("👮 شرطة",1200),"chef":("👨‍🍳 طباخ",800),"driver":("🚕 سواق",600),"singer":("🎤 مغني",3000),"football":("⚽ لاعب كورة",5000)}
-
-# ===== الانظمة الجديدة المدمجة - 700 سطر =====
-def get_energy(uid):
-    u = user(uid); now = int(time.time()); passed = (now - u.get("last_energy", now)) // 60
-    if passed > 0:
-        u["energy"] = min(100, u.get("energy", 100) + passed); u["last_energy"] = now; save()
-    return u.get("energy", 100)
-def use_energy(uid, amount):
-    u = user(uid)
-    if u.get("energy", 100) < amount: return False
-    u["energy"] -= amount; u["last_energy"] = int(time.time()); save(); return True
-LUCKY_NUMBERS = {}
-def get_lucky_number(uid):
-    today = datetime.date.today().isoformat()
-    if uid not in LUCKY_NUMBERS or LUCKY_NUMBERS[uid].get("date") != today:
-        LUCKY_NUMBERS[uid] = {"date": today, "num": random.randint(1, 100)}
-    return LUCKY_NUMBERS[uid]["num"]
-def get_daily_shop():
-    today = datetime.date.today().isoformat(); random.seed(today); items=[]
-    for i in range(5):
-        kind = random.choice(["weapon", "pet", "house", "car"])
-        if kind == "weapon":
-            k = random.choice(list(WEAPONS.keys())); items.append((WEAPONS[k][0], WEAPONS[k][1] // 2, k, "weapon"))
-        elif kind == "pet":
-            k = random.choice(list(PETS.keys())); items.append((PETS[k][0], PETS[k][1] // 2, k, "pet"))
-        elif kind == "house":
-            k = random.choice(list(HOUSES.keys())); items.append((HOUSES[k][0], HOUSES[k][1] // 2, k, "house"))
-        else:
-            k = random.choice(list(CARS.keys())); items.append((CARS[k][0], CARS[k][1] // 2, k, "car"))
-    random.seed(); return items
-def auto_bank_interest():
-    while True:
-        time.sleep(3600)
-        try:
-            for uid_str, u in list(data.items()):
-                saving = u.get("bank_saving", 0)
-                if saving > 0:
-                    profit = int(saving * 0.05)
-                    if profit > 0:
-                        u["bank_saving"] += profit
-                        try: bot.send_message(int(uid_str), f"🏦 فايدة تلقائية +{profit} على التوفير!")
-                        except: pass
-            save()
-        except: pass
-Thread(target=auto_bank_interest, daemon=True).start()
-def auto_daily_gift():
-    while True:
-        time.sleep(86400)
-        try:
-            for uid_str in list(data.keys()):
-                try:
-                    u = user(int(uid_str)); u["money"] += 200; bot.send_message(int(uid_str), "🎁 هدية يومية تلقائية +200!")
-                except: pass
-            save()
-        except: pass
-Thread(target=auto_daily_gift, daemon=True).start()
-WEEKLY_CHALLENGES = [("اجمع 10000 جنيه", 10000, 5000),("اكسب 5 مرات PvP", 5, 10000),("اشتري 3 حيوانات", 3, 3000),("اعمل 10 تداولات", 10, 5000),("اكسب في الكازينو 3 مرات", 3, 8000),("وصل مستوى 10", 10, 15000),("اجمع دخل 5000", 5000, 5000),("اشتري بيت", 1, 20000),("اتجوز", 1, 10000),("اعمل كلان", 1, 5000)]
-RANKS = [(0, "🥺 فقير"),(1000, "🌱 عادي"),(5000, "🙂 متوسط"),(20000, "🤑 غني"),(50000, "💰 غني جدا"),(100000, "🏆 مليونير"),(200000, "💎 ملياردير"),(500000, "👑 إمبراطور"),(1000000, "👑 إمبراطور الكون"),(5000000, "🌌 أسطورة الكون"),(10000000, "🔥 إله اللعبة")]
-def get_new_rank(money):
-    rank = RANKS[0][1]
-    for need, name in RANKS:
-        if money >= need: rank = name
-    return rank
-def random_event(uid):
-    events = [("🎉 لقيت 500 جنيه في الشارع!", 500),("💸 وقعت منك 200 جنيه!", -200),("🎁 صاحبك اداك 1000!", 1000),("🚨 البوليس خد منك 300 غرامة!", -300),("💎 لقيت الماس بـ 2000!", 2000),("🐶 كلب عضك ودفعت 100 علاج!", -100),("🏆 كسبت مسابقة +800!", 800),("📱 موبايلك اتكسر ودفعت 500!", -500)]
-    txt, amount = random.choice(events); u = user(uid); u["money"] = max(0, u["money"] + amount); save(); return txt, amount
-def auto_random_events():
-    while True:
-        time.sleep(1800)
-        try:
-            for uid_str in list(data.keys()):
-                if random.random() < 0.3:
-                    try:
-                        txt, amt = random_event(int(uid_str)); bot.send_message(int(uid_str), f"🎲 حدث عشوائي!\n{txt}")
-                    except: pass
-        except: pass
-Thread(target=auto_random_events, daemon=True).start()
-BLACK_MARKET = {"bm1": ("💎 الماس مسروق", 5000, 10000),"bm2": ("🔫 سلاح نادر", 8000, 15000),"bm3": ("🐉 تنين أسود", 15000, 30000),"bm4": ("🏰 قصر مهجور", 50000, 100000),"bm5": ("🚀 صاروخ", 100000, 200000)}
-def auto_auction():
-    while True:
-        time.sleep(7200)
-        try:
-            if len(settings.get("auction", [])) < 3:
-                w = random.choice(list(WEAPONS.keys())); settings.setdefault("auction", []).append({"weapon": w,"name": WEAPONS[w][0] + " (نادر)","price": WEAPONS[w][1] * 2,"seller": "0","seller_name": "السوق"}); save_settings()
-        except: pass
-Thread(target=auto_auction, daemon=True).start()
-def auto_backup():
-    while True:
-        time.sleep(3600)
-        try: save(); save_settings(); print(f"✅ Backup {time.strftime('%H:%M:%S')}")
-        except: pass
-Thread(target=auto_backup, daemon=True).start()
-def get_user_stats(uid):
-    u = user(uid); total = total_wealth(u)
-    return {"money": u["money"],"bank": u.get("bank_saving",0)+u.get("bank_current",0),"portfolio": portfolio_value(u),"total": total,"level": u["level"],"power": power(u),"rank": get_new_rank(total),"daily_income": daily_income(u)}
-def streak_bonus(uid):
-    s = user(uid).get("streak",0)
-    if s>=30: return 10000
-    if s>=14: return 5000
-    if s>=7: return 2000
-    if s>=3: return 500
-    return 100
-def notify_all(msg_text):
-    c=0
-    for uid_str in list(data.keys()):
-        try: bot.send_message(int(uid_str), msg_text); c+=1
-        except: pass
-    return c
-
-def menu(uid):
-    m=InlineKeyboardMarkup(row_width=2)
-    m.add(InlineKeyboardButton("🎮 العب واكسب", callback_data="play"),InlineKeyboardButton("📈 تداول 50 عملة", callback_data="trade"),InlineKeyboardButton("🏦 البنك الحقيقي", callback_data="bank"),InlineKeyboardButton("💎 استثمار", callback_data="invest"),InlineKeyboardButton("🐉 حيوانات 100", callback_data="pets"),InlineKeyboardButton("⚔️ قتال PvP", callback_data="pvp"),InlineKeyboardButton("👑 كلان", callback_data="clan"),InlineKeyboardButton("🏛️ مزاد", callback_data="auction"),InlineKeyboardButton("🏠 عقارات 100", callback_data="assets"),InlineKeyboardButton("🏪 مشروعي 100", callback_data="my_business"),InlineKeyboardButton("💼 شغلي", callback_data="job"),InlineKeyboardButton("💍 جواز", callback_data="marry"),InlineKeyboardButton("🛒 المتجر 100 سلاح", callback_data="shop"),InlineKeyboardButton("👤 بروفايلي", callback_data="me"),InlineKeyboardButton("🏆 الأبطال", callback_data="top"),InlineKeyboardButton("🎰 كازينو 10 ألعاب", callback_data="casino"),InlineKeyboardButton("🎯 تحدي اليوم", callback_data="challenge"),InlineKeyboardButton("🎡 عجلة ذهبية", callback_data="goldspin"),InlineKeyboardButton("🧧 ظرف أحمر", callback_data="red"),InlineKeyboardButton("💰 فلوسي", callback_data="balance"))
-    if is_owner(uid): m.add(InlineKeyboardButton("👑 لوحة الأونر 🔥🔥", callback_data="owner"))
-    m.add(InlineKeyboardButton("🔄 تحديث", callback_data="home")); return m
-def play_menu(uid):
-    m=InlineKeyboardMarkup(row_width=2)
-    m.add(InlineKeyboardButton("📋 المهام 500", callback_data="tasks"),InlineKeyboardButton("🎡 عجلة الحظ", callback_data="spin"),InlineKeyboardButton("🎲 لعبة الحظ", callback_data="gamble"),InlineKeyboardButton("🎁 صندوق", callback_data="gift"),InlineKeyboardButton("📦 صندوق ذهبي", callback_data="goldbox"),InlineKeyboardButton("🔢 خمن الرقم", callback_data="guess"),InlineKeyboardButton("📅 يومية", callback_data="daily"),InlineKeyboardButton("🎁 أكواد 100", callback_data="codes"),InlineKeyboardButton("🏆 مسابقة", callback_data="contest"),InlineKeyboardButton("🥷 سرقة", callback_data="steal"),InlineKeyboardButton("🎯 مهمة سرية", callback_data="secret"),InlineKeyboardButton("💸 قروض 5", callback_data="loan"),InlineKeyboardButton("🏠 قرض عقاري", callback_data="mortgage"),InlineKeyboardButton("🚗 تمويل سيارة", callback_data="car_loan"),InlineKeyboardButton("🎰 روليت", callback_data="roulette"),InlineKeyboardButton("🃏 بلاك جاك", callback_data="blackjack"),InlineKeyboardButton("🧠 كويز", callback_data="quiz"),InlineKeyboardButton("🎲 نرد حظ", callback_data="dice_game"),InlineKeyboardButton("💰 اجمع دخلي", callback_data="collect_all"),InlineKeyboardButton("🎁 هدية VIP", callback_data="vip_daily"),InlineKeyboardButton("🔥 سلسلة", callback_data="streak"))
-    m.add(InlineKeyboardButton("🔙 رجوع", callback_data="home")); return m
-def casino_menu(uid):
-    m=InlineKeyboardMarkup(row_width=2)
-    m.add(InlineKeyboardButton("🎰 سلوت", callback_data="slot"),InlineKeyboardButton("🎲 نرد", callback_data="dice"),InlineKeyboardButton("🃏 ورق", callback_data="cards"),InlineKeyboardButton("💎 يانصيب", callback_data="lottery"))
-    m.add(InlineKeyboardButton("🎡 روليت", callback_data="roulette"),InlineKeyboardButton("🃏 بلاك جاك", callback_data="blackjack"),InlineKeyboardButton("🪙 ملك وكتابة", callback_data="gamble"),InlineKeyboardButton("🎯 تخمين", callback_data="guess"))
-    m.add(InlineKeyboardButton("🔙 رجوع", callback_data="home")); return m
-def shop_menu(uid):
-    m=InlineKeyboardMarkup(); m.add(InlineKeyboardButton("🔫 أسلحة 100", callback_data="weapons")); m.add(InlineKeyboardButton("🐉 حيوانات 100", callback_data="petshop")); m.add(InlineKeyboardButton("👑 VIP - 1000 (×3)", callback_data="vip")); m.add(InlineKeyboardButton("🔙 رجوع", callback_data="home")); return m
-def trade_menu(uid):
-    u=user(uid); m=InlineKeyboardMarkup()
-    for k,v in list(MARKET.items())[:15]:
-        qty=u.get("portfolio",{}).get(k,0); m.add(InlineKeyboardButton(f"{v['name']} - {v['price']} | {qty}", callback_data=f"coin_{k}"))
-    m.add(InlineKeyboardButton("➡️ صفحة تانية", callback_data="trade2")); m.add(InlineKeyboardButton("🪙 ستيكينج 100%", callback_data="staking")); m.add(InlineKeyboardButton("💼 محفظتي", callback_data="my_portfolio")); m.add(InlineKeyboardButton("🔙 رجوع", callback_data="home")); return m
-def owner_menu():
-    m=InlineKeyboardMarkup(row_width=2)
-    m.add(InlineKeyboardButton("👥 المستخدمين", callback_data="a_users"),InlineKeyboardButton("📊 احصائيات", callback_data="a_stats"),InlineKeyboardButton("💰 مبلغ مخصوص لحد", callback_data="a_custom"),InlineKeyboardButton("💰 مبلغ مخصوص للكل", callback_data="a_custom_all"),InlineKeyboardButton("📢 بث", callback_data="a_bc"),InlineKeyboardButton("🎁 هدية للكل", callback_data="a_gift_all"),InlineKeyboardButton("🔍 بحث ID", callback_data="a_search"),InlineKeyboardButton("🛠️ صيانة", callback_data="a_maint"),InlineKeyboardButton("🏆 انهي المسابقة", callback_data="a_end"),InlineKeyboardButton("💰 ادي الكل", callback_data="a_all_money"),InlineKeyboardButton("🎰 سحب يانصيب", callback_data="a_lottery_draw"),InlineKeyboardButton("💥 انفجار", callback_data="a_pump"),InlineKeyboardButton("📉 انهيار", callback_data="a_crash"),InlineKeyboardButton("👑 VIP للكل", callback_data="a_vip_all"),InlineKeyboardButton("🐉 حيوان للكل", callback_data="a_pet_all"),InlineKeyboardButton("🏠 بيت للكل", callback_data="a_house_all"),InlineKeyboardButton("🚗 عربية للكل", callback_data="a_car_all"),InlineKeyboardButton("🎯 تحدي جديد", callback_data="a_new_challenge"),InlineKeyboardButton("🧹 فك حظر الكل", callback_data="a_clear_ban"),InlineKeyboardButton("💎 فلوس لنفسك", callback_data="a_self"),InlineKeyboardButton("🏆 بطولة أسبوعية", callback_data="a_weekly"),InlineKeyboardButton("💥 تصفير الكل", callback_data="reset_all"))
-    m.add(InlineKeyboardButton("🔙 رجوع", callback_data="home")); return m
-
-@bot.message_handler(commands=['start'])
-def start(msg):
-    if settings.get("maintenance") and not is_owner(msg.from_user.id): bot.send_message(msg.chat.id, "🛠️ صيانة"); return
-    if is_banned(msg.from_user.id): bot.send_message(msg.chat.id, "🚫 محظور"); return
-    u=user(msg.from_user.id); u["name"]=msg.from_user.first_name or "مستخدم"
-    if not u.get("iban"): u["iban"]=f"EG{random.randint(1000,9999)}{msg.from_user.id}{random.randint(100,999)}"; save()
-    if len(msg.text.split())>1:
-        inv=msg.text.split()[1]
-        if inv!=str(msg.from_user.id) and inv in data:
-            add(int(inv),150)
-            try: bot.send_message(int(inv), "🎉 صاحبك دخل! +150 🔥")
-            except: pass
-    inc = daily_income(u)
-    if inc>0:
-        u["money"]+=inc
-        try: bot.send_message(msg.chat.id, f"💰 دخلك اليومي +{inc} 🔥")
-        except: pass
-    save(); vip=" 👑 VIP ×3" if is_vip(u) else ""; rank=get_rank(total_wealth(u))
-    bot.send_message(msg.chat.id, f"┏━━━━━━━━━━━━━━┓\n┃ 🎮 أهلاً {u['name']}{vip}\n┃ {rank}\n┃ 💰 {u['money']} جنيه\n┃ 🏦 جاري {u.get('bank_current',0)} | توفير {u.get('bank_saving',0)}\n┃ 🏧 IBAN: {u.get('iban')}\n┃ {lvl_emoji(u['level'])} مستوى {u['level']} | ⭐ {u['xp']} XP\n┃ ⚡ قوة +{power(u)}\n┃ 💰 دخلك اليومي +{daily_income(u)}\n┃ 📈 ثروتك {total_wealth(u)}\n┃ 🎮 100 سلاح | 100 حيوان | 500 مهمة | 50 عملة\n┗━━━━━━━━━━━━━━┛\n\nاختار 👇", reply_markup=menu(msg.from_user.id))
-
-@bot.message_handler(commands=['give','take','giveall','takeall','money','ping','id','rank','owner','admin'])
-def owner_cmd(msg):
-    txt = msg.text.split(); cmd = txt[0].replace("/","")
-    if cmd=="ping": bot.send_message(msg.chat.id, "✅ شغال مدمج 1000+ سطر!"); return
-    if cmd=="id": bot.send_message(msg.chat.id, f"🆔 ID: `{msg.from_user.id}`", parse_mode="Markdown"); return
-    if cmd=="rank":
-        u=user(msg.from_user.id); bot.send_message(msg.chat.id, f"👑 {get_rank(total_wealth(u))} ثروتك {total_wealth(u)}"); return
-    if not is_owner(msg.from_user.id): bot.send_message(msg.chat.id, "❌ مش الأونر"); return
-    if cmd=="money":
-        amt = int(txt[1]) if len(txt)>1 and txt[1].isdigit() else 100000; u=user(msg.from_user.id); u["money"]+=amt; save(); bot.send_message(msg.chat.id, f"💰 +{amt}"); return
-    if cmd=="give":
-        if len(txt)<3: bot.send_message(msg.chat.id, "❌ `/give ID المبلغ`", parse_mode="Markdown"); return
-        tid, amt = txt[1], txt[2]
-        if not amt.isdigit(): bot.send_message(msg.chat.id, "❌ المبلغ رقم"); return
-        amt=int(amt)
-        if tid not in data: bot.send_message(msg.chat.id, "❌ مفيش حد"); return
-        target=user(int(tid)); target["money"]+=amt; save(); bot.send_message(msg.chat.id, f"✅ اديت {target.get('name')} +{amt}")
-        try: bot.send_message(int(tid), f"🎁 الأونر اداك +{amt} 🔥")
-        except: pass
-        return
-    if cmd=="take":
-        if len(txt)<3: bot.send_message(msg.chat.id, "❌ `/take ID المبلغ`", parse_mode="Markdown"); return
-        tid, amt = txt[1], txt[2]
-        if not amt.isdigit(): bot.send_message(msg.chat.id, "❌ المبلغ رقم"); return
-        amt=int(amt)
-        if tid not in data: bot.send_message(msg.chat.id, "❌ مفيش حد"); return
-        target=user(int(tid)); target["money"]=max(0, target["money"]-amt); save(); bot.send_message(msg.chat.id, f"✅ سحبت -{amt}"); return
-    if cmd=="giveall":
-        if len(txt)<2 or not txt[1].isdigit(): bot.send_message(msg.chat.id, "❌ `/giveall المبلغ`", parse_mode="Markdown"); return
-        amt=int(txt[1])
-        for k in data: data[k]["money"]+=amt
-        save(); bot.send_message(msg.chat.id, f"✅ اديت {amt} للكل"); return
-    if cmd=="takeall":
-        if len(txt)<2 or not txt[1].isdigit(): bot.send_message(msg.chat.id, "❌ `/takeall المبلغ`", parse_mode="Markdown"); return
-        amt=int(txt[1])
-        for k in data: data[k]["money"]=max(0, data[k]["money"]-amt)
-        save(); bot.send_message(msg.chat.id, f"✅ سحبت {amt} من الكل"); return
-    if cmd in ["owner","admin"]: bot.send_message(msg.chat.id, "👑 لوحة الأونر", reply_markup=owner_menu()); return
-
-@bot.message_handler(func=lambda m: m.text and is_owner(m.from_user.id))
-def owner_text(msg):
-    uid = msg.from_user.id; txt = msg.text.strip()
-    if uid in pending:
-        p = pending[uid]
-        if p.get("action")=="wait_transfer_id":
-            if txt not in data: bot.send_message(msg.chat.id, "❌ مفيش حد"); return
-            pending[uid]={"action":"wait_transfer_amt", "target":txt}; bot.send_message(msg.chat.id, f"✅ هتحول لـ {data[txt].get('name')} اكتب المبلغ"); return
-        if p.get("action")=="wait_transfer_amt":
-            if not txt.isdigit(): bot.send_message(msg.chat.id, "❌ اكتب رقم"); return
-            amt=int(txt); tid=p["target"]; uu=user(uid); fee=5
-            if uu["money"]<amt+fee: bot.send_message(msg.chat.id, f"❌ محتاج {amt+fee}"); return
-            uu["money"]-=amt+fee; target=user(int(tid)); target["money"]+=amt; save(); del pending[uid]; bot.send_message(msg.chat.id, f"✅ حولت {amt}"); return
-        if txt.isdigit():
-            amt = int(txt)
-            if amt <= 0 or amt > 100000000: bot.send_message(msg.chat.id, "❌ اكتب رقم بين 1 و 100 مليون"); return
-            if p["action"] == "custom_all":
-                for k in data: data[k]["money"]+=amt
-                save(); del pending[uid]; bot.send_message(msg.chat.id, f"✅ اديت {amt} للكل", reply_markup=owner_menu()); return
-            if p["action"] == "custom_one":
-                tid = p["target"]
-                if tid not in data: del pending[uid]; bot.send_message(msg.chat.id, "❌ مش موجود"); return
-                target=user(int(tid)); target["money"]+=amt; save(); del pending[uid]; bot.send_message(msg.chat.id, f"✅ اديت {target.get('name')} +{amt}", reply_markup=owner_menu()); return
-            if p["action"] == "custom_take":
-                tid = p["target"]; target=user(int(tid)); target["money"]=max(0, target["money"]-amt); save(); del pending[uid]; bot.send_message(msg.chat.id, f"✅ سحبت -{amt}", reply_markup=owner_menu()); return
-            if p["action"] == "custom_bank":
-                tid = p["target"]; target=user(int(tid)); target["bank_saving"]=target.get("bank_saving",0)+amt; save(); del pending[uid]; bot.send_message(msg.chat.id, f"✅ حطيت {amt} في التوفير", reply_markup=owner_menu()); return
-        if p["action"] == "wait_id" and txt.isdigit():
-            if txt not in data: bot.send_message(msg.chat.id, "❌ مفيش حد"); return
-            pending[uid] = {"target": txt, "action": "custom_one"}; bot.send_message(msg.chat.id, f"✅ لقيت {data[txt].get('name')} اكتب المبلغ"); return
-        bot.send_message(msg.chat.id, "❌ اكتب رقم بس"); return
-    if txt.isdigit() and txt in data:
-        tid = txt; info=user(int(tid))
-        m=InlineKeyboardMarkup(row_width=3)
-        m.add(InlineKeyboardButton("💰 مبلغ ➕", callback_data=f"custom_{tid}"), InlineKeyboardButton("💸 اسحب ➖", callback_data=f"ctake_{tid}"))
-        m.add(InlineKeyboardButton("➕1000", callback_data=f"add_{tid}_1000"), InlineKeyboardButton("➕10000", callback_data=f"add_{tid}_10000"), InlineKeyboardButton("💎 1M", callback_data=f"add_{tid}_1000000"))
-        m.add(InlineKeyboardButton("💥 تصفير", callback_data=f"zero_{tid}"), InlineKeyboardButton("👑 VIP", callback_data=f"gv_{tid}"), InlineKeyboardButton("🚫 حظر", callback_data=f"ban_{tid}"))
-        m.add(InlineKeyboardButton("✅ فك حظر", callback_data=f"unban_{tid}"), InlineKeyboardButton("🐉 تنين", callback_data=f"givepet_{tid}_pet1"), InlineKeyboardButton("🙏 سامحه قروض", callback_data=f"forgive_{tid}"))
-        m.add(InlineKeyboardButton("🔙 لوحة", callback_data="owner"))
-        bot.send_message(msg.chat.id, f"👤 {info.get('name')}\n🆔 {tid}\n💰 {info['money']}\n🏦 توفير {info.get('bank_saving',0)}", reply_markup=m); return
-
-@bot.callback_query_handler(func=lambda c: True)
-def btn(call):
-    uid=call.from_user.id; u=user(uid); cid=call.message.chat.id; d=call.data
-    try: bot.answer_callback_query(call.id)
-    except: pass
-    try:
-        if settings.get("maintenance") and not is_owner(uid) and d not in ["home"]: bot.send_message(cid, "🛠️ صيانة"); return
-        if is_banned(uid) and not is_owner(uid): bot.send_message(cid, "🚫 محظور"); return
-        if d in ["bank","casino","slot","dice","cards"] and check_loan_penalty(u) == "🔒 محظور": bot.send_message(cid, "🔒 محظور! سدد القرض", reply_markup=menu(uid)); return
-        if d=="home": bot.send_message(cid, f"🏠 الرئيسية 💰 {u['money']} | مستوى {u['level']}", reply_markup=menu(uid)); return
-        if d=="balance": bot.send_message(cid, f"💰 ثروتك {total_wealth(u)}\n💵 كاش {u['money']}\n🏦 جاري {u.get('bank_current',0)} توفير {u.get('bank_saving',0)}\n📈 محفظة {portfolio_value(u)}\n💰 دخل يومي +{daily_income(u)}\n👑 {get_rank(total_wealth(u))}\n⚡ طاقتك {get_energy(uid)}/100", reply_markup=menu(uid)); return
-        if d=="play": bot.send_message(cid, f"🎮 العب 💰 {u['money']}", reply_markup=play_menu(uid)); return
-        if d=="casino": bot.send_message(cid, f"🎰 كازينو جاكبوت {settings.get('jackpot',10000)}", reply_markup=casino_menu(uid)); return
-        if d=="shop": bot.send_message(cid, f"🛒 المتجر 💰 {u['money']}", reply_markup=shop_menu(uid)); return
-        if d=="me":
-            st=get_user_stats(uid); bot.send_message(cid, f"👤 {u['name']} 🆔 {uid}\n💰 {u['money']} 🏦 {st['bank']} 📈 {st['portfolio']} 💰 ثروة {st['total']}\n⭐ مستوى {u['level']} ⚡ قوة {st['power']} 🐉 {st['pets']} 🔫 {st['weapons']}\n💼 شغل {JOBS[u['job']][0] if u.get('job') in JOBS else 'مفيش'} 💍 {u.get('married') or 'لا'}\n👑 {'✅ ×3' if is_vip(u) else '❌'}", reply_markup=menu(uid)); return
-        if d=="top":
-            top=sorted(data.items(), key=lambda x: total_wealth(x[1]), reverse=True)[:10]; txt="🏆 الأبطال\n"
-            for i,(k,v) in enumerate(top): txt+=f"{i+1}. {v.get('name')} - {total_wealth(v)}\n"
-            bot.send_message(cid, txt, reply_markup=menu(uid)); return
-        if d=="collect_all":
-            inc=daily_income(u)
-            if inc==0: bot.send_message(cid, "❌ معندكش دخل", reply_markup=menu(uid)); return
-            u["money"]+=inc; save(); bot.send_message(cid, f"💰 جمعت +{inc}", reply_markup=menu(uid)); return
-        if d=="vip_daily":
-            if not is_vip(u): bot.send_message(cid, "❌ VIP بس", reply_markup=menu(uid)); return
-            today=datetime.date.today().isoformat()
-            if u.get("vip_daily")==today: bot.send_message(cid, "❌ خدتها النهاردة", reply_markup=menu(uid)); return
-            u["vip_daily"]=today; u["money"]+=5000; save(); bot.send_message(cid, "🎁 VIP +5000", reply_markup=menu(uid)); return
-        if d=="job":
-            if u.get("job") in JOBS:
-                m=InlineKeyboardMarkup(); m.add(InlineKeyboardButton("💰 اقبض", callback_data="job_pay")); m.add(InlineKeyboardButton("🚪 استقيل", callback_data="job_quit")); m.add(InlineKeyboardButton("🔙", callback_data="home")); bot.send_message(cid, f"💼 {JOBS[u['job']][0]} مرتب {JOBS[u['job']][1]}", reply_markup=m); return
-            m=InlineKeyboardMarkup()
-            for k,(name,sal) in JOBS.items(): m.add(InlineKeyboardButton(f"{name} - {sal}", callback_data=f"takejob_{k}"))
-            m.add(InlineKeyboardButton("🔙", callback_data="home")); bot.send_message(cid, "💼 اختار شغل:", reply_markup=m); return
-        if d.startswith("takejob_"):
-            k=d.replace("takejob_",""); u["job"]=k; save(); bot.send_message(cid, f"🎉 اشتغلت {JOBS[k][0]}!", reply_markup=menu(uid)); return
-        if d=="job_pay":
-            if not u.get("job"): bot.send_message(cid, "❌ معندكش شغل", reply_markup=menu(uid)); return
-            got=add(uid, JOBS[u["job"]][1]); bot.send_message(cid, f"💰 قبضت +{got}", reply_markup=menu(uid)); return
-        if d=="job_quit": u["job"]=None; save(); bot.send_message(cid, "🚪 استقلت", reply_markup=menu(uid)); return
-        if d=="marry":
-            others=[(k,v) for k,v in data.items() if k!=str(uid)][:10]; m=InlineKeyboardMarkup()
-            for k,v in others: m.add(InlineKeyboardButton(f"💍 {v.get('name')}", callback_data=f"marry_{k}"))
-            m.add(InlineKeyboardButton("💔 طلق", callback_data="divorce")); m.add(InlineKeyboardButton("🔙", callback_data="home")); bot.send_message(cid, f"💍 متجوز: {u.get('married') or 'لا'} +5000 مهر!", reply_markup=m); return
-        if d.startswith("marry_"):
-            tid=d.replace("marry_",""); target=user(int(tid)); u["married"]=target.get("name"); target["married"]=u["name"]; u["money"]+=5000; target["money"]+=5000; save(); bot.send_message(cid, f"💍 اتجوزت {target.get('name')}! +5000", reply_markup=menu(uid)); return
-        if d=="divorce": u["married"]=None; save(); bot.send_message(cid, "💔 طلقت", reply_markup=menu(uid)); return
-        if d=="assets":
-            m=InlineKeyboardMarkup(); m.add(InlineKeyboardButton("🏠 بيت", callback_data="buy_house")); m.add(InlineKeyboardButton("🚗 عربية", callback_data="buy_car")); m.add(InlineKeyboardButton("🏪 مشروع", callback_data="my_business")); m.add(InlineKeyboardButton("🔙", callback_data="home")); bot.send_message(cid, f"🏠 عقارات 💰 {u['money']} دخل +{daily_income(u)}", reply_markup=m); return
-        if d=="buy_house":
-            m=InlineKeyboardMarkup()
-            for k in list(HOUSES.keys())[:10]: m.add(InlineKeyboardButton(f"{HOUSES[k][0]} +{HOUSES[k][2]}/يوم - {HOUSES[k][1]}", callback_data=f"bh_{k}"))
-            m.add(InlineKeyboardButton("🔙", callback_data="assets")); bot.send_message(cid, "🏠 بيوت", reply_markup=m); return
-        if d.startswith("bh_"):
-            k=d.replace("bh_",""); name,price,inc=HOUSES[k]
-            if u["money"]<price: bot.send_message(cid, "❌ فلوسك مش كفاية", reply_markup=menu(uid)); return
-            u["money"]-=price; u["house"]=k; save(); bot.send_message(cid, f"🎉 اشتريت {name} +{inc}/يوم", reply_markup=menu(uid)); return
-        if d=="buy_car":
-            m=InlineKeyboardMarkup()
-            for k in list(CARS.keys())[:10]: m.add(InlineKeyboardButton(f"{CARS[k][0]} +{CARS[k][2]}/يوم - {CARS[k][1]}", callback_data=f"bc_{k}"))
-            m.add(InlineKeyboardButton("🔙", callback_data="assets")); bot.send_message(cid, "🚗 عربيات", reply_markup=m); return
-        if d.startswith("bc_"):
-            k=d.replace("bc_",""); name,price,inc=CARS[k]
-            if u["money"]<price: bot.send_message(cid, "❌ فلوسك مش كفاية", reply_markup=menu(uid)); return
-            u["money"]-=price; u["car"]=k; save(); bot.send_message(cid, f"🎉 اشتريت {name}", reply_markup=menu(uid)); return
-        if d=="my_business":
-            m=InlineKeyboardMarkup()
-            for k in list(BUSINESS.keys())[:10]: m.add(InlineKeyboardButton(f"{BUSINESS[k][0]} +{BUSINESS[k][2]}/يوم - {BUSINESS[k][1]}", callback_data=f"bb_{k}"))
-            m.add(InlineKeyboardButton("🔙", callback_data="home")); bot.send_message(cid, "🏪 مشاريع", reply_markup=m); return
-        if d.startswith("bb_"):
-            k=d.replace("bb_",""); name,price,inc=BUSINESS[k]
-            if u["money"]<price: bot.send_message(cid, "❌ فلوسك مش كفاية", reply_markup=menu(uid)); return
-            u["money"]-=price; u["business"]=k; save(); bot.send_message(cid, f"🎉 فتحت {name}", reply_markup=menu(uid)); return
-        if d=="mortgage":
-            if u.get("house"): bot.send_message(cid, "عندك بيت", reply_markup=menu(uid)); return
-            m=InlineKeyboardMarkup(); m.add(InlineKeyboardButton("🏠 قرض 200000 - فيلا", callback_data="take_mortgage")); m.add(InlineKeyboardButton("🔙", callback_data="play")); bot.send_message(cid, "🏠 قرض عقاري 200000 فيلا +1500/يوم", reply_markup=m); return
-        if d=="take_mortgage": u["house"]="h10"; u["loans"]=u.get("loans",[])+[{"amount":200000,"time":int(time.time())}]; save(); bot.send_message(cid, "🎉 خدت فيلا +1500/يوم", reply_markup=menu(uid)); return
-        if d=="car_loan":
-            if u.get("car"): bot.send_message(cid, "عندك عربية", reply_markup=menu(uid)); return
-            m=InlineKeyboardMarkup(); m.add(InlineKeyboardButton("🚕 تاكسي 20000", callback_data="take_carloan")); m.add(InlineKeyboardButton("🔙", callback_data="play")); bot.send_message(cid, "🚗 تاكسي +300/يوم", reply_markup=m); return
-        if d=="take_carloan": u["car"]="c1"; u["loans"]=u.get("loans",[])+[{"amount":20000,"time":int(time.time())}]; save(); bot.send_message(cid, "🎉 خدت تاكسي", reply_markup=menu(uid)); return
-        if d=="pets":
-            pets=", ".join([PETS[x][0] for x in u.get("pets",[])[:5] if x in PETS]) or "مفيش"; m=InlineKeyboardMarkup(); m.add(InlineKeyboardButton("🛒 اشتري", callback_data="petshop")); m.add(InlineKeyboardButton("💰 اجمع", callback_data="collect_pet")); m.add(InlineKeyboardButton("🔙", callback_data="home")); bot.send_message(cid, f"🐉 {pets} دخل +{pet_income(u)}", reply_markup=m); return
-        if d=="petshop":
-            m=InlineKeyboardMarkup()
-            for k in list(PETS.keys())[:10]: m.add(InlineKeyboardButton(f"{PETS[k][0]} +{PETS[k][2]}/يوم - {PETS[k][1]}", callback_data=f"buypet_{k}"))
-            m.add(InlineKeyboardButton("🔙", callback_data="pets")); bot.send_message(cid, "🐉 حيوانات", reply_markup=m); return
-        if d.startswith("buypet_"):
-            k=d.replace("buypet_",""); name,price,inc=PETS[k]
-            if k in u.get("pets",[]): bot.send_message(cid, "معاك ده", reply_markup=shop_menu(uid)); return
-            if u["money"]>=price: u["money"]-=price; u["pets"].append(k); save(); bot.send_message(cid, f"🎉 اشتريت {name}", reply_markup=menu(uid))
-            else: bot.send_message(cid, "❌ فلوسك مش كفاية", reply_markup=shop_menu(uid))
-            return
-        if d=="collect_pet":
-            inc=pet_income(u)
-            if inc==0: bot.send_message(cid, "❌ معندكش", reply_markup=menu(uid)); return
-            u["money"]+=inc; save(); bot.send_message(cid, f"🐉 +{inc}", reply_markup=menu(uid)); return
-        if d=="pvp":
-            m=InlineKeyboardMarkup(); others=[(k,v) for k,v in data.items() if k!=str(uid) and v.get("money",0)>100][:10]
-            if not others: bot.send_message(cid, "❌ مفيش حد", reply_markup=menu(uid)); return
-            for k,v in others: m.add(InlineKeyboardButton(f"⚔️ {v.get('name')} - {power(v)}", callback_data=f"fight_{k}"))
-            m.add(InlineKeyboardButton("🔙", callback_data="home")); bot.send_message(cid, f"⚔️ قوتك {power(u)}", reply_markup=m); return
-        if d.startswith("fight_"):
-            tid=d.replace("fight_",""); enemy=user(int(tid)); my_p=power(u)+random.randint(0,50); en_p=power(enemy)+random.randint(0,50)
-            if my_p>=en_p:
-                win=min(500, enemy["money"]//2); enemy["money"]-=win; u["money"]+=win; save(); bot.send_message(cid, f"🎉 كسبت +{win}", reply_markup=menu(uid))
-            else:
-                lose=min(200, u["money"]//4); u["money"]=max(0,u["money"]-lose); enemy["money"]+=lose; save(); bot.send_message(cid, f"😢 خسرت -{lose}", reply_markup=menu(uid))
-            return
-        if d=="clan":
-            clans=settings.get("clans",{})
-            if u.get("clan") and u["clan"] in clans:
-                c=clans[u["clan"]]; m=InlineKeyboardMarkup(); m.add(InlineKeyboardButton("💰 +500", callback_data="clan_bonus")); m.add(InlineKeyboardButton("⚔️ حرب 10000", callback_data="clan_war")); m.add(InlineKeyboardButton("🚪 اخرج", callback_data="clan_leave")); m.add(InlineKeyboardButton("🔙", callback_data="home")); bot.send_message(cid, f"👑 {c['name']} {len(c.get('members',[]))} عضو", reply_markup=m); return
-            m=InlineKeyboardMarkup()
-            for cid2,c in list(clans.items())[:10]: m.add(InlineKeyboardButton(f"👑 {c['name']}", callback_data=f"join_{cid2}"))
-            m.add(InlineKeyboardButton("➕ اعمل كلان 1000", callback_data="create_clan")); m.add(InlineKeyboardButton("🔙", callback_data="home")); bot.send_message(cid, "👑 الكلانات", reply_markup=m); return
-        if d=="clan_war":
-            now=int(time.time())
-            if now-u.get("clan_war_cd",0)<3600: bot.send_message(cid, "⏳ حرب كل ساعة", reply_markup=menu(uid)); return
-            u["clan_war_cd"]=now
-            if random.random()<0.6: got=add(uid,10000); bot.send_message(cid, f"🎉 كلانك كسب +{got}", reply_markup=menu(uid))
-            else: bot.send_message(cid, "😢 خسرت", reply_markup=menu(uid))
-            save(); return
-        if d=="create_clan":
-            if u["money"]<1000: bot.send_message(cid, "❌ محتاج 1000", reply_markup=menu(uid)); return
-            u["money"]-=1000; cid2=str(uid); settings.setdefault("clans",{})[cid2]={"name":f"كلان {u['name']}","leader":str(uid),"members":[str(uid)]}; u["clan"]=cid2; save(); save_settings(); bot.send_message(cid, "🎉 عملت كلان", reply_markup=menu(uid)); return
-        if d.startswith("join_"):
-            cid2=d.replace("join_","")
-            if cid2 in settings.get("clans",{}): settings["clans"][cid2].setdefault("members",[]).append(str(uid)); u["clan"]=cid2; save(); save_settings(); bot.send_message(cid, "✅ دخلت كلان", reply_markup=menu(uid))
-            return
-        if d=="clan_bonus": got=add(uid,500); bot.send_message(cid, f"👑 +{got}", reply_markup=menu(uid)); return
-        if d=="clan_leave":
-            if u.get("clan") in settings.get("clans",{}):
-                try: settings["clans"][u["clan"]]["members"].remove(str(uid))
-                except: pass
-            u["clan"]=None; save(); save_settings(); bot.send_message(cid, "🚪 خرجت", reply_markup=menu(uid)); return
-        if d=="auction":
-            auc=settings.get("auction",[])
-            if not auc: bot.send_message(cid, "🏛️ المزاد فاضي", reply_markup=menu(uid)); return
-            m=InlineKeyboardMarkup()
-            for i,item in enumerate(auc[:10]): m.add(InlineKeyboardButton(f"{item['name']} - {item['price']}", callback_data=f"buyauc_{i}"))
-            m.add(InlineKeyboardButton("➕ اعرض سلاحي", callback_data="sell_auction")); m.add(InlineKeyboardButton("🔙", callback_data="home")); bot.send_message(cid, "🏛️ المزاد", reply_markup=m); return
-        if d=="sell_auction":
-            if not u.get("weapons"): bot.send_message(cid, "❌ معندكش سلاح", reply_markup=menu(uid)); return
-            m=InlineKeyboardMarkup()
-            for w in u.get("weapons",[])[:10]: m.add(InlineKeyboardButton(f"بيع {WEAPONS[w][0]} - 500", callback_data=f"listauc_{w}"))
-            m.add(InlineKeyboardButton("🔙", callback_data="home")); bot.send_message(cid, "اختر سلاح", reply_markup=m); return
-        if d.startswith("listauc_"):
-            w=d.replace("listauc_",""); u["weapons"].remove(w); settings.setdefault("auction",[]).append({"weapon":w,"name":WEAPONS[w][0],"price":500,"seller":str(uid),"seller_name":u["name"]}); save(); save_settings(); bot.send_message(cid, "✅ عرضت في المزاد", reply_markup=menu(uid)); return
-        if d.startswith("buyauc_"):
-            idx=int(d.replace("buyauc_","")); auc=settings.get("auction",[])
-            if idx>=len(auc): bot.send_message(cid, "❌ اتباع", reply_markup=menu(uid)); return
-            item=auc[idx]
-            if u["money"]<item["price"]: bot.send_message(cid, "❌ فلوسك مش كفاية", reply_markup=menu(uid)); return
-            u["money"]-=item["price"]; u["weapons"].append(item["weapon"]); s=user(int(item["seller"])) if item["seller"]!="0" else u; s["money"]+=item["price"]; settings["auction"].pop(idx); save(); save_settings(); bot.send_message(cid, "✅ اشتريت", reply_markup=menu(uid)); return
-        if d=="goldspin":
-            today=datetime.date.today().isoformat()
-            if u.get("gold_spin")==today: bot.send_message(cid, "❌ لعبت النهاردة", reply_markup=menu(uid)); return
-            u["gold_spin"]=today; win=random.choice([500,1000,2000,5000,10000,50000]); u["money"]+=win; save(); bot.send_message(cid, f"🎡 +{win}", reply_markup=menu(uid)); return
-        if d=="red":
-            m=InlineKeyboardMarkup(); others=[(k,v) for k,v in data.items() if k!=str(uid)][:10]
-            for k,v in others: m.add(InlineKeyboardButton(f"🧧 200 لـ {v.get('name')}", callback_data=f"red_{k}"))
-            m.add(InlineKeyboardButton("🔙", callback_data="home")); bot.send_message(cid, "🧧 ظرف", reply_markup=m); return
-        if d.startswith("red_"):
-            tid=d.replace("red_","")
-            if u["money"]<200: bot.send_message(cid, "❌ محتاج 200", reply_markup=menu(uid)); return
-            u["money"]-=200; t=user(int(tid)); t["money"]+=300; save(); bot.send_message(cid, "🧧 بعت ظرف", reply_markup=menu(uid)); return
-        if d=="guess":
-            u["guess_num"]=random.randint(1,5); save(); m=InlineKeyboardMarkup(row_width=5)
-            for i in range(1,6): m.add(InlineKeyboardButton(f"{i}", callback_data=f"guess_{i}"))
-            m.add(InlineKeyboardButton("🔙", callback_data="play")); bot.send_message(cid, "🔢 خمن 1-5 +2000", reply_markup=m); return
-        if d.startswith("guess_"):
-            pick=int(d.replace("guess_","")); target=u.get("guess_num",0)
-            if pick==target: got=add(uid,2000); bot.send_message(cid, f"🎉 صح +{got}", reply_markup=play_menu(uid))
-            else: bot.send_message(cid, f"😢 غلط كان {target}", reply_markup=play_menu(uid))
-            return
-        if d=="roulette":
-            if u["money"]<100: bot.send_message(cid, "❌ محتاج 100", reply_markup=casino_menu(uid)); return
-            u["money"]-=100; num=random.randint(0,36); color="🔴 أحمر" if num%2==0 else "⚫ أسود"
-            if num==0: u["money"]+=3600; bot.send_message(cid, f"🎡 {num} 🟢 +3600!", reply_markup=casino_menu(uid))
-            elif num%2==0: u["money"]+=200; bot.send_message(cid, f"🎡 {num} {color} +200", reply_markup=casino_menu(uid))
-            else: bot.send_message(cid, f"🎡 {num} {color} 😢 خسرت", reply_markup=casino_menu(uid))
-            save(); return
-        if d=="blackjack":
-            if u["money"]<100: bot.send_message(cid, "❌ محتاج 100", reply_markup=casino_menu(uid)); return
-            u["money"]-=100; me=random.randint(15,22); dealer=random.randint(15,22)
-            if me>21: bot.send_message(cid, f"🃏 انت {me} - البوت {dealer} 😢 خسرت", reply_markup=casino_menu(uid))
-            elif dealer>21 or me>dealer: u["money"]+=250; bot.send_message(cid, f"🃏 انت {me} - البوت {dealer} 🎉 +250", reply_markup=casino_menu(uid))
-            else: bot.send_message(cid, f"🃏 انت {me} - البوت {dealer} 😢 خسرت", reply_markup=casino_menu(uid))
-            save(); return
-        if d=="quiz":
-            q = random.choice([("عاصمة مصر؟", ["القاهرة","الجيزة","اسكندرية"], 0), ("2+2؟", ["3","4","5"], 1), ("أكبر كوكب؟", ["الأرض","المشتري","المريخ"], 1)])
-            m=InlineKeyboardMarkup(row_width=1)
-            for i,opt in enumerate(q[1]): m.add(InlineKeyboardButton(opt, callback_data=f"quiz_{i}_{q[2]}"))
-            bot.send_message(cid, f"🧠 {q[0]}", reply_markup=m); return
-        if d.startswith("quiz_"):
-            _,pick,ans=d.split("_"); pick=int(pick); ans=int(ans)
-            if pick==ans: got=add(uid,1000); bot.send_message(cid, f"🎉 صح +{got}", reply_markup=play_menu(uid))
-            else: bot.send_message(cid, "❌ غلط", reply_markup=play_menu(uid))
-            return
-        if d=="dice_game":
-            if u["money"]<50: bot.send_message(cid, "❌ محتاج 50", reply_markup=casino_menu(uid)); return
-            u["money"]-=50; me=random.randint(1,6); b=random.randint(1,6)
-            if me>b: u["money"]+=150; bot.send_message(cid, f"🎲 {me}-{b} +150", reply_markup=casino_menu(uid))
-            elif me<b: bot.send_message(cid, f"🎲 {me}-{b} 😢", reply_markup=casino_menu(uid))
-            else: u["money"]+=50; bot.send_message(cid, "🤝 تعادل", reply_markup=casino_menu(uid))
-            save(); return
-        if d=="bank":
-            m=InlineKeyboardMarkup(row_width=2); m.add(InlineKeyboardButton("💵 جاري", callback_data="bank_current"),InlineKeyboardButton("💰 توفير 25%", callback_data="bank_saving"),InlineKeyboardButton("📜 شهادات", callback_data="certs"),InlineKeyboardButton("💳 فيزا", callback_data="credit"),InlineKeyboardButton("🔄 تحويل", callback_data="transfer"),InlineKeyboardButton("💰 وديعة", callback_data="deposit_box"),InlineKeyboardButton("📋 كشف حساب", callback_data="statement"),InlineKeyboardButton("🏧 مكشوف", callback_data="overdraft")); m.add(InlineKeyboardButton("🔙", callback_data="home")); total_bank=u.get("bank",0)+u.get("bank_current",0)+u.get("bank_saving",0)+sum(c["amount"] for c in u.get("certificates",[])); bot.send_message(cid, f"🏦 البنك IBAN {u.get('iban')}\n💵 كاش {u['money']} جاري {u.get('bank_current',0)} توفير {u.get('bank_saving',0)} شهادات {sum(c['amount'] for c in u.get('certificates',[]))} فيزا {u.get('credit_used',0)}/{u.get('credit_limit',5000)} إجمالي {total_bank}", reply_markup=m); return
-        if d=="bank_current":
-            m=InlineKeyboardMarkup(row_width=2); m.add(InlineKeyboardButton("➕ 500", callback_data="cur_dep_500"),InlineKeyboardButton("➕ 5000", callback_data="cur_dep_5000"),InlineKeyboardButton("➕ الكل", callback_data="cur_dep_all"),InlineKeyboardButton("➖ سحب 500", callback_data="cur_with_500"),InlineKeyboardButton("➖ سحب الكل", callback_data="cur_with_all"),InlineKeyboardButton("🔙 بنك", callback_data="bank")); bot.send_message(cid, f"💵 جاري {u.get('bank_current',0)}", reply_markup=m); return
-        if d.startswith("cur_dep_"):
-            amt=u["money"] if d=="cur_dep_all" else int(d.replace("cur_dep_",""))
-            if u["money"]<amt: bot.send_message(cid, "❌ فلوسك مش كفاية", reply_markup=menu(uid)); return
-            u["money"]-=amt; u["bank_current"]=u.get("bank_current",0)+amt; save(); add_history(uid, f"ايداع جاري +{amt}"); bot.send_message(cid, f"✅ حطيت {amt}", reply_markup=menu(uid)); return
-        if d.startswith("cur_with_"):
-            amt=u.get("bank_current",0) if d=="cur_with_all" else int(d.replace("cur_with_",""))
-            if u.get("bank_current",0)<amt: bot.send_message(cid, "❌ مفيش كفاية", reply_markup=menu(uid)); return
-            u["bank_current"]-=amt; u["money"]+=amt; save(); add_history(uid, f"سحب جاري -{amt}"); bot.send_message(cid, f"✅ سحبت {amt}", reply_markup=menu(uid)); return
-        if d=="bank_saving":
-            profit=int(u.get("bank_saving",0)*0.25); m=InlineKeyboardMarkup(row_width=2); m.add(InlineKeyboardButton("➕ 500", callback_data="sav_dep_500"),InlineKeyboardButton("➕ 5000", callback_data="sav_dep_5000"),InlineKeyboardButton("➕ الكل", callback_data="sav_dep_all"),InlineKeyboardButton("➖ سحب 500", callback_data="sav_with_500"),InlineKeyboardButton("➖ سحب الكل", callback_data="sav_with_all"),InlineKeyboardButton(f"📈 فايدة +{profit}", callback_data="interest"),InlineKeyboardButton("🔙 بنك", callback_data="bank")); bot.send_message(cid, f"💰 توفير {u.get('bank_saving',0)} فايدة {profit}", reply_markup=m); return
-        if d.startswith("sav_dep_"):
-            amt=u["money"] if d=="sav_dep_all" else int(d.replace("sav_dep_",""))
-            if u["money"]<amt: bot.send_message(cid, "❌ فلوسك مش كفاية", reply_markup=menu(uid)); return
-            u["money"]-=amt; u["bank_saving"]=u.get("bank_saving",0)+amt; save(); add_history(uid, f"ايداع توفير +{amt}"); bot.send_message(cid, f"✅ حطيت {amt}", reply_markup=menu(uid)); return
-        if d.startswith("sav_with_"):
-            amt=u.get("bank_saving",0) if d=="sav_with_all" else int(d.replace("sav_with_",""))
-            if u.get("bank_saving",0)<amt: bot.send_message(cid, "❌ مفيش كفاية", reply_markup=menu(uid)); return
-            u["bank_saving"]-=amt; u["money"]+=amt; save(); add_history(uid, f"سحب توفير -{amt}"); bot.send_message(cid, f"✅ سحبت {amt}", reply_markup=menu(uid)); return
-        if d=="interest":
-            if u.get("bank_saving",0)<=0: bot.send_message(cid, "❌ حط في التوفير", reply_markup=menu(uid)); return
-            profit=int(u.get("bank_saving",0)*0.25); u["money"]+=profit; save(); bot.send_message(cid, f"📈 +{profit}", reply_markup=menu(uid)); return
-        if d=="certs":
-            m=InlineKeyboardMarkup(); m.add(InlineKeyboardButton("📜 40% - 1000", callback_data="cert_1000_40")); m.add(InlineKeyboardButton("📜 70% - 5000", callback_data="cert_5000_70")); m.add(InlineKeyboardButton("📜 150% - 20000", callback_data="cert_20000_150")); m.add(InlineKeyboardButton("💰 فك الشهادات", callback_data="cert_break")); m.add(InlineKeyboardButton("🔙 بنك", callback_data="bank")); txt="📜 شهادات\n"
-            for i,c in enumerate(u.get("certificates",[])): txt+=f"{i+1}. {c['amount']} - {c['rate']}% هتاخد {int(c['amount']*(1+c['rate']/100))}\n"
-            bot.send_message(cid, txt, reply_markup=m); return
-        if d.startswith("cert_") and d!="cert_break":
-            _,amt,rate=d.split("_"); amt=int(amt); rate=int(rate)
-            if u["money"]<amt: bot.send_message(cid, "❌ محتاج", reply_markup=menu(uid)); return
-            u["money"]-=amt; u.setdefault("certificates",[]).append({"amount":amt,"rate":rate,"time":int(time.time())}); save(); bot.send_message(cid, f"✅ شهادة {amt} {rate}%", reply_markup=menu(uid)); return
-        if d=="cert_break":
-            certs=u.get("certificates",[])
-            if not certs: bot.send_message(cid, "❌ معندكش", reply_markup=menu(uid)); return
-            total=sum(int(c["amount"]*(1+c["rate"]/100)) for c in certs); u["money"]+=total; u["certificates"]=[]; save(); bot.send_message(cid, f"💰 فكيت {total}", reply_markup=menu(uid)); return
-        if d=="credit":
-            m=InlineKeyboardMarkup(row_width=2); m.add(InlineKeyboardButton("🛒 فيزا 500", callback_data="cc_buy_500"),InlineKeyboardButton("🛒 فيزا 1000", callback_data="cc_buy_1000"),InlineKeyboardButton("💳 سدد", callback_data="cc_pay"),InlineKeyboardButton("⬆️ زود الحد 5000", callback_data="cc_upgrade"),InlineKeyboardButton("🔙 بنك", callback_data="bank")); bot.send_message(cid, f"💳 حد {u.get('credit_limit',5000)} مستخدم {u.get('credit_used',0)}", reply_markup=m); return
-        if d.startswith("cc_buy_"):
-            amt=int(d.replace("cc_buy_","")); avail=u.get("credit_limit",5000)-u.get("credit_used",0)
-            if amt>avail: bot.send_message(cid, "❌ الحد مش كفاية", reply_markup=menu(uid)); return
-            u["credit_used"]=u.get("credit_used",0)+amt; u["money"]+=amt; save(); bot.send_message(cid, f"✅ فيزا {amt}", reply_markup=menu(uid)); return
-        if d=="cc_pay":
-            used=u.get("credit_used",0)
-            if used<=0: bot.send_message(cid, "✅ متسددة", reply_markup=menu(uid)); return
-            if u["money"]<used: bot.send_message(cid, "❌ محتاج", reply_markup=menu(uid)); return
-            u["money"]-=used; u["credit_used"]=0; save(); bot.send_message(cid, f"✅ سددت {used}", reply_markup=menu(uid)); return
-        if d=="cc_upgrade":
-            if u["money"]<5000: bot.send_message(cid, "❌ محتاج 5000", reply_markup=menu(uid)); return
-            u["money"]-=5000; u["credit_limit"]=u.get("credit_limit",5000)+2000; save(); bot.send_message(cid, f"✅ الحد {u['credit_limit']}", reply_markup=menu(uid)); return
-        if d=="transfer": pending[uid]={"action":"wait_transfer_id"}; bot.send_message(cid, "🔄 تحويل - ابعت ID الشخص رسوم 5", reply_markup=menu(uid)); return
-        if d=="deposit_box":
-            m=InlineKeyboardMarkup(); m.add(InlineKeyboardButton("💰 وديعة 1000 - 2000", callback_data="wd_1000")); m.add(InlineKeyboardButton("💰 وديعة 5000 - 10000", callback_data="wd_5000")); m.add(InlineKeyboardButton("🔙 بنك", callback_data="bank")); bot.send_message(cid, "💰 وديعة", reply_markup=m); return
-        if d.startswith("wd_"):
-            amt=int(d.replace("wd_",""))
-            if u["money"]<amt: bot.send_message(cid, "❌ فلوسك مش كفاية", reply_markup=menu(uid)); return
-            u["money"]-=amt; u.setdefault("certificates",[]).append({"amount":amt,"rate":100,"time":int(time.time())}); save(); bot.send_message(cid, f"✅ وديعة {amt}", reply_markup=menu(uid)); return
-        if d=="statement":
-            hist=u.get("bank_history",[])
-            if not hist: bot.send_message(cid, "📋 فاضي", reply_markup=menu(uid)); return
-            bot.send_message(cid, "📋 كشف حساب\n"+"\n".join(hist), reply_markup=menu(uid)); return
-        if d=="overdraft":
-            m=InlineKeyboardMarkup(); m.add(InlineKeyboardButton("🏧 500 مكشوف", callback_data="od_500")); m.add(InlineKeyboardButton("✅ سدد", callback_data="od_pay")); m.add(InlineKeyboardButton("🔙 بنك", callback_data="bank")); bot.send_message(cid, f"🏧 مكشوف {u.get('overdraft',0)}/1000", reply_markup=m); return
-        if d.startswith("od_") and d!="od_pay":
-            amt=int(d.replace("od_",""))
-            if u.get("overdraft",0)+amt>1000: bot.send_message(cid, "❌ عديت الحد", reply_markup=menu(uid)); return
-            u["money"]+=amt; u["overdraft"]=u.get("overdraft",0)+amt; save(); bot.send_message(cid, f"✅ {amt} مكشوف", reply_markup=menu(uid)); return
-        if d=="od_pay":
-            od=u.get("overdraft",0)
-            if od<=0: bot.send_message(cid, "✅ معليكش", reply_markup=menu(uid)); return
-            if u["money"]<od: bot.send_message(cid, "❌ محتاج", reply_markup=menu(uid)); return
-            u["money"]-=od; u["overdraft"]=0; save(); bot.send_message(cid, f"✅ سددت {od}", reply_markup=menu(uid)); return
-        if d=="loan":
-            loans=u.get("loans",[]); total_loan=sum(x["amount"] for x in loans); penalty=check_loan_penalty(u); m=InlineKeyboardMarkup(row_width=2)
-            if penalty!="🔒 محظور":
-                m.add(InlineKeyboardButton("💸 1000", callback_data="take_1000")); m.add(InlineKeyboardButton("💸 5000", callback_data="take_5000")); m.add(InlineKeyboardButton("💸 10000", callback_data="take_10000")); m.add(InlineKeyboardButton("💸 50000", callback_data="take_50000")); m.add(InlineKeyboardButton("💸 100000", callback_data="take_100000"))
-            if loans:
-                for i,ln in enumerate(loans):
-                    pa,rate,days=get_loan_pay_amount(ln); m.add(InlineKeyboardButton(f"✅ سدد {i+1} - {ln['amount']} هتدفع {pa} ({int(rate*100)}%)", callback_data=f"pay_{i}"))
-                m.add(InlineKeyboardButton("💥 سدد الكل", callback_data="pay_all"))
-            m.add(InlineKeyboardButton("🔙", callback_data="home")); txt=f"💸 قروض {len(loans)}/5 عليك {total_loan} معاك {u['money']}\nعقاب: يوم 20% / 3 أيام 30% + خصم / 7 أيام 50% + حظر"; bot.send_message(cid, txt, reply_markup=m); return
-        if d.startswith("take_"):
-            loans=u.get("loans",[])
-            if check_loan_penalty(u)=="🔒 محظور": bot.send_message(cid, "🔒 محظور سدد القديم", reply_markup=menu(uid)); return
-            if len(loans)>=5: bot.send_message(cid, "❌ 5 قروض سدد واحد", reply_markup=menu(uid)); return
-            amt=int(d.replace("take_","")); u["money"]+=amt; loans.append({"amount":amt,"time":int(time.time())}); u["loans"]=loans; save(); bot.send_message(cid, f"✅ خدت {amt}", reply_markup=menu(uid)); return
-        if d.startswith("pay_") and d!="pay_all":
-            idx=int(d.replace("pay_","")); loans=u.get("loans",[])
-            if idx>=len(loans): bot.send_message(cid, "❌ مش موجود", reply_markup=menu(uid)); return
-            ln=loans[idx]; pa,rate,days=get_loan_pay_amount(ln)
-            if u["money"]<pa:
-                need=pa-u["money"]
-                if u.get("bank_saving",0)>=need: u["bank_saving"]-=need; u["money"]=0; loans.pop(idx); u["loans"]=loans; save(); bot.send_message(cid, "🏦 خصم من التوفير ✅ سددت", reply_markup=menu(uid)); return
-                bot.send_message(cid, f"❌ محتاج {pa} فايدة {int(rate*100)}% متأخر {days} يوم", reply_markup=menu(uid)); return
-            u["money"]-=pa; loans.pop(idx); u["loans"]=loans; save(); bot.send_message(cid, f"✅ سددت {pa}", reply_markup=menu(uid)); return
-        if d=="pay_all":
-            loans=u.get("loans",[])
-            if not loans: bot.send_message(cid, "❌ معليكش", reply_markup=menu(uid)); return
-            total=sum(get_loan_pay_amount(x)[0] for x in loans)
-            if u["money"]<total:
-                need=total-u["money"]
-                if u.get("bank_saving",0)>=need: u["bank_saving"]-=need; u["money"]=0; u["loans"]=[]; save(); bot.send_message(cid, "🏦 خصم من التوفير ✅ سددت الكل", reply_markup=menu(uid)); return
-                bot.send_message(cid, f"❌ محتاج {total}", reply_markup=menu(uid)); return
-            u["money"]-=total; u["loans"]=[]; save(); bot.send_message(cid, f"✅ سددت الكل {total}", reply_markup=menu(uid)); return
-        if d=="invest":
-            m=InlineKeyboardMarkup(row_width=2); m.add(InlineKeyboardButton("💎 1000", callback_data="inv_1000"),InlineKeyboardButton("💎 5000", callback_data="inv_5000"),InlineKeyboardButton("💎 20000", callback_data="inv_20000")); m.add(InlineKeyboardButton("💰 اسحب", callback_data="inv_out")); m.add(InlineKeyboardButton("🔙", callback_data="home")); bot.send_message(cid, f"💎 استثمار {u.get('invest',0)} كاش {u['money']}", reply_markup=m); return
-        if d.startswith("inv_") and d!="inv_out":
-            amt=int(d.replace("inv_",""))
-            if u["money"]<amt: bot.send_message(cid, "❌ فلوسك مش كفاية", reply_markup=menu(uid)); return
-            u["money"]-=amt; u["invest"]=u.get("invest",0)+amt; save(); bot.send_message(cid, f"✅ استثمرت {amt} +50%", reply_markup=menu(uid)); return
-        if d=="inv_out":
-            if u.get("invest",0)<=0: bot.send_message(cid, "❌ معندكش", reply_markup=menu(uid)); return
-            profit=int(u.get("invest",0)*0.5); total=u.get("invest",0)+profit; u["money"]+=total; u["invest"]=0; save(); bot.send_message(cid, f"💎 سحبت {total}", reply_markup=menu(uid)); return
-        if d=="goldbox":
-            if u["money"]<200: bot.send_message(cid, "❌ محتاج 200", reply_markup=play_menu(uid)); return
-            u["money"]-=200; win=random.choice([100,300,500,1000,2000,5000]); u["money"]+=win; save(); bot.send_message(cid, f"📦 +{win}", reply_markup=play_menu(uid)); return
-        if d=="challenge":
-            today=datetime.date.today().isoformat()
-            if u.get("last_challenge")==today: bot.send_message(cid, "✅ عملته النهاردة", reply_markup=menu(uid)); return
-            u["last_challenge"]=today; got=add(uid,2000); bot.send_message(cid, f"🎯 +{got}", reply_markup=menu(uid)); return
-        if d=="slot":
-            if u["money"]<50: bot.send_message(cid, "❌ محتاج 50", reply_markup=casino_menu(uid)); return
-            u["money"]-=50; fruits=["🍎","🍌","🍇","🍓","🍒","💎","7️⃣"]; r=[random.choice(fruits) for _ in range(3)]; txt=f"🎰 {' | '.join(r)}\n"
-            if r[0]==r[1]==r[2]:
-                win=5000 if r[0]=="💎" else 2000 if r[0]=="7️⃣" else 500; u["money"]+=win; txt+=f"🎉 +{win}"; settings["jackpot"]=settings.get("jackpot",10000)+50
-            elif r[0]==r[1] or r[1]==r[2] or r[0]==r[2]: u["money"]+=150; txt+="✅ +150"
-            else: txt+="😢 مفيش"
-            save(); save_settings(); bot.send_message(cid, txt, reply_markup=casino_menu(uid)); return
-        if d=="dice":
-            if u["money"]<50: bot.send_message(cid, "❌ محتاج 50", reply_markup=casino_menu(uid)); return
-            u["money"]-=50; me=random.randint(1,6); bd=random.randint(1,6)
-            if me>bd: u["money"]+=150; res=f"🎉 كسبت {me}-{bd} +150"
-            elif me<bd: res=f"😢 خسرت {me}-{bd}"
-            else: u["money"]+=50; res="🤝 تعادل"
-            save(); bot.send_message(cid, res, reply_markup=casino_menu(uid)); return
-        if d=="cards":
-            if u["money"]<50: bot.send_message(cid, "❌ محتاج 50", reply_markup=casino_menu(uid)); return
-            u["money"]-=50; m=InlineKeyboardMarkup(row_width=3)
-            for i in range(3): m.add(InlineKeyboardButton(f"🃏 {i+1}", callback_data=f"pick_{i}"))
-            m.add(InlineKeyboardButton("🔙", callback_data="home")); bot.send_message(cid, "🃏 اختار كارت 500", reply_markup=m); return
-        if d.startswith("pick_"):
-            wc=random.randint(0,2); pick=int(d.replace("pick_",""))
-            if pick==wc: u["money"]+=500; save(); bot.send_message(cid, "🎉 صح +500", reply_markup=casino_menu(uid))
-            else: save(); bot.send_message(cid, f"😢 غلط كان {wc+1}", reply_markup=casino_menu(uid))
-            return
-        if d=="lottery":
-            m=InlineKeyboardMarkup(); m.add(InlineKeyboardButton("🎟️ تذكرة 50", callback_data="buy_ticket")); m.add(InlineKeyboardButton("🔙", callback_data="home")); bot.send_message(cid, f"💎 يانصيب تذكرتك {u.get('lottery_tickets',0)} جايزة {settings.get('jackpot',10000)}", reply_markup=m); return
-        if d=="buy_ticket":
-            if u["money"]<50: bot.send_message(cid, "❌ محتاج 50", reply_markup=casino_menu(uid)); return
-            u["money"]-=50; u["lottery_tickets"]=u.get("lottery_tickets",0)+1; settings.setdefault("lottery",[]).append(str(uid)); settings["jackpot"]=settings.get("jackpot",10000)+50; save(); save_settings(); bot.send_message(cid, "✅ تذكرة", reply_markup=casino_menu(uid)); return
-        if d=="steal":
-            now=int(time.time())
-            if now-u.get("steal",0)<20: bot.send_message(cid, f"⏳ استنى {20-(now-u.get('steal',0))}", reply_markup=play_menu(uid)); return
-            others=[k for k in data.keys() if k!=str(uid) and data[k].get("money",0)>100]
-            if not others: bot.send_message(cid, "❌ مفيش حد", reply_markup=play_menu(uid)); return
-            victim=random.choice(others); v=data[victim]; u["steal"]=now
-            if random.random()<0.6:
-                sa=random.randint(50, min(300, v["money"]//2)); v["money"]-=sa; u["money"]+=sa; save(); bot.send_message(cid, f"🥷 سرقت {sa} من {v.get('name')}", reply_markup=play_menu(uid))
-            else: u["money"]=max(0,u["money"]-50); save(); bot.send_message(cid, "🚨 اتقفشت -50", reply_markup=play_menu(uid))
-            return
-        if d=="secret": got=add(uid,500); bot.send_message(cid, f"🎯 +{got}", reply_markup=play_menu(uid)); return
-        if d=="trade": bot.send_message(cid, "📈 بورصة", reply_markup=trade_menu(uid)); return
-        if d=="trade2":
-            m=InlineKeyboardMarkup()
-            for k in list(MARKET.keys())[15:30]:
-                v=MARKET[k]; qty=u.get("portfolio",{}).get(k,0); m.add(InlineKeyboardButton(f"{v['name']} - {v['price']} | {qty}", callback_data=f"coin_{k}"))
-            m.add(InlineKeyboardButton("🔙 بورصة", callback_data="trade")); bot.send_message(cid, "📈 بورصة صفحة 2", reply_markup=m); return
-        if d=="staking":
-            m=InlineKeyboardMarkup(); m.add(InlineKeyboardButton("🪙 1000 - 2000", callback_data="stake_1000")); m.add(InlineKeyboardButton("🪙 5000 - 10000", callback_data="stake_5000")); m.add(InlineKeyboardButton("💰 اسحب", callback_data="stake_out")); m.add(InlineKeyboardButton("🔙", callback_data="trade")); bot.send_message(cid, f"🪙 ستيكينج {u.get('staking',0)}", reply_markup=m); return
-        if d.startswith("stake_") and d!="stake_out":
-            amt=int(d.replace("stake_",""))
-            if u["money"]<amt: bot.send_message(cid, "❌ فلوسك مش كفاية", reply_markup=menu(uid)); return
-            u["money"]-=amt; u["staking"]=u.get("staking",0)+amt; save(); bot.send_message(cid, f"✅ حطيت {amt} هتاخد {amt*2}", reply_markup=menu(uid)); return
-        if d=="stake_out":
-            if u.get("staking",0)<=0: bot.send_message(cid, "❌ معندكش", reply_markup=menu(uid)); return
-            total=u.get("staking",0)*2; u["money"]+=total; u["staking"]=0; save(); bot.send_message(cid, f"🪙 سحبت {total}", reply_markup=menu(uid)); return
-        if d=="my_portfolio":
-            pf=u.get("portfolio",{})
-            if not pf or sum(pf.values())==0: bot.send_message(cid, "💼 فاضية", reply_markup=trade_menu(uid)); return
-            txt="💼 محفظتك\n"; total=0
-            for k,qty in pf.items():
-                if qty>0 and k in MARKET: val=qty*MARKET[k]["price"]; total+=val; txt+=f"{MARKET[k]['name']} {qty} × {MARKET[k]['price']} = {val}\n"
-            bot.send_message(cid, txt+f"إجمالي {total}", reply_markup=trade_menu(uid)); return
-        if d.startswith("coin_"):
-            k=d.replace("coin_",""); info=MARKET[k]; qty=u.get("portfolio",{}).get(k,0); m=InlineKeyboardMarkup(row_width=2); m.add(InlineKeyboardButton(f"🟢 اشتري 1 - {info['price']}", callback_data=f"buy_{k}_1"),InlineKeyboardButton(f"🟢 اشتري 5 - {info['price']*5}", callback_data=f"buy_{k}_5")); m.add(InlineKeyboardButton("🔴 بيع 1", callback_data=f"sell_{k}_1"),InlineKeyboardButton("🔴 بيع الكل", callback_data=f"sell_{k}_all")); m.add(InlineKeyboardButton("🔙", callback_data="trade")); bot.send_message(cid, f"{info['name']} سعر {info['price']} معاك {qty}", reply_markup=m); return
-        if d.startswith("buy_"):
-            _,k,amt=d.split("_"); amt=int(amt); price=MARKET[k]["price"]*amt
-            if u["money"]<price: bot.send_message(cid, "❌ محتاج", reply_markup=trade_menu(uid)); return
-            u["money"]-=price; u["portfolio"][k]=u["portfolio"].get(k,0)+amt; save(); bot.send_message(cid, f"✅ اشتريت {amt}", reply_markup=trade_menu(uid)); return
-        if d.startswith("sell_"):
-            _,k,amt=d.split("_"); have=u.get("portfolio",{}).get(k,0)
-            if have<=0: bot.send_message(cid, "❌ معكش", reply_markup=trade_menu(uid)); return
-            amt=have if amt=="all" else min(int(amt),have); gain=MARKET[k]["price"]*amt; u["money"]+=gain; u["portfolio"][k]-=amt; save(); bot.send_message(cid, f"✅ بعت {amt} بـ {gain}", reply_markup=trade_menu(uid)); return
-        if d=="tasks":
-            m=InlineKeyboardMarkup()
-            for i in range(10): m.add(InlineKeyboardButton(f"{TASKS[i][0]} +{TASKS[i][1]+power(u)}", callback_data=f"t_{i}"))
-            m.add(InlineKeyboardButton("➡️ مهام أكتر", callback_data="tasks2")); m.add(InlineKeyboardButton("🔙", callback_data="play")); bot.send_message(cid, "📋 500 مهمة", reply_markup=m); return
-        if d=="tasks2":
-            m=InlineKeyboardMarkup()
-            for i in range(10,20): m.add(InlineKeyboardButton(f"{TASKS[i][0]} +{TASKS[i][1]+power(u)}", callback_data=f"t_{i}"))
-            m.add(InlineKeyboardButton("🔙", callback_data="play")); bot.send_message(cid, "📋 مهام 10-20", reply_markup=m); return
-        if d.startswith("t_"):
-            i=int(d.split("_")[1])
-            if i==0:
-                m=InlineKeyboardMarkup(row_width=2); m.add(InlineKeyboardButton("3", callback_data="wrong"), InlineKeyboardButton("4 ✅", callback_data="right_50"), InlineKeyboardButton("5", callback_data="wrong"), InlineKeyboardButton("6", callback_data="wrong")); bot.send_message(cid, "🧠 2+2 = كام؟", reply_markup=m)
-            else: got=add(uid, TASKS[i][1]+power(u)); bot.send_message(cid, f"✅ خدت +{got}", reply_markup=play_menu(uid))
-            return
-        if d.startswith("right_"): got=add(uid, int(d.split("_")[1])+power(u)); bot.send_message(cid, f"✅ صح! +{got}", reply_markup=play_menu(uid)); return
-        if d=="wrong": bot.send_message(cid, "❌ غلط", reply_markup=play_menu(uid)); return
-        if d=="daily":
-            now=int(time.time())
-            if now-u.get("daily",0)<5: bot.send_message(cid, "⏳ استنى", reply_markup=play_menu(uid))
-            else: u["streak"]+=1; got=add(uid,(500 if is_vip(u) else 100)+u["streak"]*10); u["daily"]=now; save(); bot.send_message(cid, f"📅 +{got}", reply_markup=play_menu(uid))
-            return
-        if d=="gift":
-            now=int(time.time())
-            if now-u.get("gift",0)<5: bot.send_message(cid, "⏳ استنى", reply_markup=play_menu(uid))
-            else: got=add(uid,1000 if is_vip(u) else random.choice([50,100,200,500,1000])); u["gift"]=now; save(); bot.send_message(cid, f"🎁 +{got}", reply_markup=play_menu(uid))
-            return
-        if d=="spin":
-            now=int(time.time())
-            if now-u.get("spin",0)<5: bot.send_message(cid, "⏳ كل 5 ث", reply_markup=play_menu(uid))
-            else: r=random.choice([0,50,100,200,500,1000,2000,5000]); u["spin"]=now; save(); got=add(uid,r) if r>0 else 0; bot.send_message(cid, f"🎡 +{got}" if r>0 else "😢 صفر", reply_markup=play_menu(uid))
-            return
-        if d=="gamble":
-            m=InlineKeyboardMarkup(row_width=2); m.add(InlineKeyboardButton("🪙 ملك 50", callback_data="g_1"),InlineKeyboardButton("🪙 كتابة 50", callback_data="g_2")); m.add(InlineKeyboardButton("🔙", callback_data="play")); bot.send_message(cid, "🎲 راهن 50 تكسب 150", reply_markup=m); return
-        if d.startswith("g_"):
-            if u["money"]<50: bot.send_message(cid, "❌ فلوسك مش كفاية", reply_markup=play_menu(uid)); return
-            u["money"]-=50
-            if random.choice([True,False]): u["money"]+=150; save(); bot.send_message(cid, "🎉 +150", reply_markup=play_menu(uid))
-            else: save(); bot.send_message(cid, "😢 -50", reply_markup=play_menu(uid))
-            return
-        if d=="codes":
-            m=InlineKeyboardMarkup(row_width=2)
-            for c in list(CODES.keys())[:10]: m.add(InlineKeyboardButton(c, callback_data=f"code_{c}"))
-            m.add(InlineKeyboardButton("🔙", callback_data="play")); bot.send_message(cid, "🎁 100 كود", reply_markup=m); return
-        if d.startswith("code_"):
-            c=d.replace("code_","")
-            if c in u.get("codes",[]): bot.send_message(cid, "❌ استخدمته", reply_markup=play_menu(uid)); return
-            u["codes"].append(c); got=add(uid, CODES[c]); bot.send_message(cid, f"🎉 +{got}", reply_markup=play_menu(uid)); return
-        if d=="contest":
-            top=sorted(data.items(), key=lambda x: x[1].get('score',0), reverse=True)[:5]; txt="🏆 مسابقة - أعلى نقاط 5000\n"
-            for i,(k,v) in enumerate(top): txt+=f"{i+1}. {v.get('name')} - {v.get('score',0)}\n"
-            bot.send_message(cid, txt+f"نقطك {u.get('score',0)}", reply_markup=play_menu(uid)); return
-        if d=="weapons":
-            m=InlineKeyboardMarkup()
-            for k in list(WEAPONS.keys())[:10]: m.add(InlineKeyboardButton(f"{WEAPONS[k][0]} +{WEAPONS[k][2]} - {WEAPONS[k][1]}", callback_data=f"bw_{k}"))
-            m.add(InlineKeyboardButton("➡️ أسلحة أكتر", callback_data="weapons2")); m.add(InlineKeyboardButton("🔙", callback_data="shop")); bot.send_message(cid, f"🔫 100 سلاح قوتك +{power(u)}", reply_markup=m); return
-        if d=="weapons2":
-            m=InlineKeyboardMarkup()
-            for k in list(WEAPONS.keys())[10:20]: m.add(InlineKeyboardButton(f"{WEAPONS[k][0]} +{WEAPONS[k][2]} - {WEAPONS[k][1]}", callback_data=f"bw_{k}"))
-            m.add(InlineKeyboardButton("🔙", callback_data="shop")); bot.send_message(cid, "🔫 أسلحة 10-20", reply_markup=m); return
-        if d.startswith("bw_"):
-            k=d.replace("bw_",""); name,price,bonus=WEAPONS[k]
-            if k in u.get("weapons",[]): bot.send_message(cid, "معاك ده", reply_markup=shop_menu(uid)); return
-            if u["money"]>=price: u["money"]-=price; u["weapons"].append(k); save(); bot.send_message(cid, f"🎉 اشتريت {name}", reply_markup=shop_menu(uid))
-            else: bot.send_message(cid, "❌ فلوسك مش كفاية", reply_markup=shop_menu(uid))
-            return
-        if d=="vip":
-            if is_vip(u): bot.send_message(cid, "VIP أصلاً", reply_markup=shop_menu(uid)); return
-            m=InlineKeyboardMarkup(); m.add(InlineKeyboardButton("👑 اشتري VIP 1000", callback_data="buy_vip")); m.add(InlineKeyboardButton("🔙", callback_data="shop")); bot.send_message(cid, "👑 VIP ×3 + هدية 5000 كل يوم", reply_markup=m); return
-        if d=="buy_vip":
-            if u["money"]>=1000: u["money"]-=1000; u["vip"]=True; u["vip_until"]=0; save(); bot.send_message(cid, "🎉 VIP 👑", reply_markup=shop_menu(uid))
-            else: bot.send_message(cid, "❌ فلوسك مش كفاية", reply_markup=shop_menu(uid))
-            return
-        if d=="owner":
-            if not is_owner(uid): bot.send_message(cid, "❌ مش الأونر"); return
-            bot.send_message(cid, f"👑 لوحة الأونر 👥 {len(data)} 💰 {sum(v.get('money',0) for v in data.values())} جاكبوت {settings.get('jackpot',10000)}", reply_markup=owner_menu()); return
-        if d=="a_custom":
-            if not is_owner(uid): return
-            pending[uid]={"action":"wait_id"}; bot.send_message(cid, "💰 ابعت ID", reply_markup=owner_menu()); return
-        if d=="a_custom_all":
-            if not is_owner(uid): return
-            pending[uid]={"action":"custom_all"}; bot.send_message(cid, "💰 اكتب المبلغ للكل", reply_markup=owner_menu()); return
-        if d.startswith("custom_"):
-            if not is_owner(uid): return
-            tid=d.replace("custom_",""); pending[uid]={"target":tid,"action":"custom_one"}; bot.send_message(cid, "💰 اكتب المبلغ"); return
-        if d.startswith("ctake_"):
-            if not is_owner(uid): return
-            tid=d.replace("ctake_",""); pending[uid]={"target":tid,"action":"custom_take"}; bot.send_message(cid, "💸 اكتب المبلغ تسحبه"); return
-        if d=="a_stats":
-            if not is_owner(uid): return
-            bot.send_message(cid, f"📊 👥 {len(data)} 💰 {sum(v.get('money',0) for v in data.values())} 🏠 {sum(1 for v in data.values() if v.get('house'))}", reply_markup=owner_menu()); return
-        if d=="a_users":
-            if not is_owner(uid): return
-            m=InlineKeyboardMarkup()
-            for k,v in list(data.items())[:25]: m.add(InlineKeyboardButton(f"{v.get('name')} - {v.get('money',0)}", callback_data=f"a_u_{k}"))
-            m.add(InlineKeyboardButton("🔙", callback_data="owner")); bot.send_message(cid, "👥 دوس على واحد", reply_markup=m); return
-        if d.startswith("a_u_"):
-            if not is_owner(uid): return
-            t=d.replace("a_u_",""); info=user(int(t)); m=InlineKeyboardMarkup(row_width=2); m.add(InlineKeyboardButton("💰 مبلغ", callback_data=f"custom_{t}"),InlineKeyboardButton("💸 اسحب", callback_data=f"ctake_{t}"),InlineKeyboardButton("➕1000", callback_data=f"add_{t}_1000"),InlineKeyboardButton("➕10000", callback_data=f"add_{t}_10000"),InlineKeyboardButton("💎 1M", callback_data=f"add_{t}_1000000"),InlineKeyboardButton("💥 تصفير", callback_data=f"zero_{t}"),InlineKeyboardButton("👑 VIP", callback_data=f"gv_{t}"),InlineKeyboardButton("🚫 حظر", callback_data=f"ban_{t}"),InlineKeyboardButton("✅ فك حظر", callback_data=f"unban_{t}"),InlineKeyboardButton("🐉 تنين", callback_data=f"givepet_{t}_pet1"),InlineKeyboardButton("🙏 سامحه قروض", callback_data=f"forgive_{t}")); m.add(InlineKeyboardButton("🔙", callback_data="a_users")); bot.send_message(cid, f"👤 {info.get('name')} 🆔 {t} 💰 {info['money']}", reply_markup=m); return
-        if d.startswith("forgive_"):
-            if not is_owner(uid): return
-            t=d.replace("forgive_",""); info=user(int(t)); info["loans"]=[]; save(); bot.send_message(cid, f"✅ سامحت {info.get('name')}", reply_markup=owner_menu()); return
-        if d.startswith("givepet_"):
-            if not is_owner(uid): return
-            _,t,pet=d.split("_",2); info=user(int(t))
-            if pet not in info["pets"]: info["pets"].append(pet); save()
-            bot.send_message(cid, f"✅ اديت {PETS[pet][0]}", reply_markup=owner_menu()); return
-        if d.startswith("zero_"):
-            if not is_owner(uid): return
-            t=d.replace("zero_",""); info=user(int(t)); info["money"]=0; info["score"]=0; info["portfolio"]={}; info["bank"]=0; info["bank_current"]=0; info["bank_saving"]=0; info["invest"]=0; save(); bot.send_message(cid, f"💥 صفرت {info.get('name')}", reply_markup=owner_menu()); return
-        if d.startswith("rmvip_"):
-            if not is_owner(uid): return
-            t=d.replace("rmvip_",""); info=user(int(t)); info["vip"]=False; save(); bot.send_message(cid, "❌ شلت VIP", reply_markup=owner_menu()); return
-        if d.startswith("ban_"):
-            if not is_owner(uid): return
-            t=d.replace("ban_","")
-            if t not in settings["banned"]: settings["banned"].append(t); save_settings()
-            bot.send_message(cid, f"🚫 حظرت {t}", reply_markup=owner_menu()); return
-        if d.startswith("unban_"):
-            if not is_owner(uid): return
-            t=d.replace("unban_","")
-            if t in settings["banned"]: settings["banned"].remove(t); save_settings()
-            bot.send_message(cid, f"✅ فكيت {t}", reply_markup=owner_menu()); return
-        if d.startswith("gv_"):
-            if not is_owner(uid): return
-            t=d.replace("gv_",""); info=user(int(t)); info["vip"]=True; save(); bot.send_message(cid, "✅ VIP", reply_markup=owner_menu()); return
-        if d.startswith("add_") or d.startswith("sub_"):
-            if not is_owner(uid): return
-            _,t,amt=d.split("_"); amt=int(amt); info=user(int(t))
-            if d.startswith("add_"): info["money"]+=amt
-            else: info["money"]=max(0,info["money"]-amt)
-            save(); bot.send_message(cid, f"✅ بقى {info['money']}", reply_markup=owner_menu()); return
-        if d=="a_maint":
-            if not is_owner(uid): return
-            m=InlineKeyboardMarkup(); m.add(InlineKeyboardButton("قفل/فتح", callback_data="toggle_maint")); m.add(InlineKeyboardButton("🔙", callback_data="owner")); bot.send_message(cid, f"🛠️ صيانة {settings.get('maintenance')}", reply_markup=m); return
-        if d=="toggle_maint":
-            if not is_owner(uid): return
-            settings["maintenance"]=not settings.get("maintenance",False); save_settings(); bot.send_message(cid, "✅ غيرت الصيانة", reply_markup=owner_menu()); return
-        if d=="a_self":
-            if not is_owner(uid): return
-            m=InlineKeyboardMarkup(); m.add(InlineKeyboardButton("💰 100K", callback_data="self_100000")); m.add(InlineKeyboardButton("💎 1M", callback_data="self_1000000")); m.add(InlineKeyboardButton("👑 VIP", callback_data="self_vip")); m.add(InlineKeyboardButton("🔙", callback_data="owner")); bot.send_message(cid, "💎 لنفسك", reply_markup=m); return
-        if d.startswith("self_"):
-            if not is_owner(uid): return
-            if d=="self_vip": u["vip"]=True; save(); bot.send_message(cid, "✅ VIP", reply_markup=owner_menu()); return
-            amt=int(d.replace("self_","")); u["money"]+=amt; save(); bot.send_message(cid, f"✅ +{amt}", reply_markup=owner_menu()); return
-        if d=="a_vip_all":
-            if not is_owner(uid): return
-            for k in data: data[k]["vip"]=True
-            save(); bot.send_message(cid, "✅ VIP للكل", reply_markup=owner_menu()); return
-        if d=="a_pet_all":
-            if not is_owner(uid): return
-            for k in data:
-                if "pet1" not in data[k].get("pets",[]): data[k].setdefault("pets",[]).append("pet1")
-            save(); bot.send_message(cid, "✅ تنين للكل", reply_markup=owner_menu()); return
-        if d=="a_house_all":
-            if not is_owner(uid): return
-            for k in data: data[k]["house"]="h1"
-            save(); bot.send_message(cid, "✅ شقة للكل", reply_markup=owner_menu()); return
-        if d=="a_car_all":
-            if not is_owner(uid): return
-            for k in data: data[k]["car"]="c1"
-            save(); bot.send_message(cid, "✅ عربية للكل", reply_markup=owner_menu()); return
-        if d=="a_weekly":
-            if not is_owner(uid): return
-            if not data: bot.send_message(cid, "مفيش حد", reply_markup=owner_menu()); return
-            w=max(data.items(), key=lambda x: x[1].get('score',0)); wid,winfo=w; winfo["money"]+=50000; winfo["score"]=0; save()
-            for k in data:
-                if k!=wid: data[k]["score"]=0
-            save(); bot.send_message(cid, f"🏆 بطل الأسبوع {winfo.get('name')} +50000", reply_markup=owner_menu()); return
-        if d=="a_end":
-            if not is_owner(uid): return
-            if not data: bot.send_message(cid, "مفيش حد", reply_markup=owner_menu()); return
-            w=max(data.items(), key=lambda x: x[1].get('score',0)); wid,winfo=w; winfo["money"]+=5000; winfo["score"]=0; save()
-            for k in data:
-                if k!=wid: data[k]["score"]=0
-            save(); bot.send_message(cid, f"🏆 الفايز {winfo.get('name')} +5000", reply_markup=owner_menu()); return
-        # ===== هنا التصليح المدمج - اليانصيب الصح =====
-        if d=="a_lottery_draw":
-            if not is_owner(uid): return
-            lot=settings.get("lottery",[])
-            if not lot: bot.send_message(cid, "❌ مفيش تذاكر", reply_markup=owner_menu()); return
-            winner=random.choice(lot)
-            prize=settings.get("jackpot",10000)
-            winfo=user(int(winner))
-            winfo["money"]+=prize
-            winfo["lottery_tickets"]=0
-            save()
-            settings["lottery"]=[]
-            settings["jackpot"]=10000
-            save_settings()
-            for k in data:
-                try: bot.send_message(int(k), f"💎 نتيجة اليانصيب!\n🏆 الفايز: {winfo.get('name')} كسب {prize}!")
-                except: pass
-            bot.send_message(cid, f"🏆 الفايز: {winfo.get('name')} +{prize}", reply_markup=owner_menu()); return
-        if d=="a_pump":
-            if not is_owner(uid): return
-            for k in MARKET: MARKET[k]["price"]+=random.randint(100,300)
-            bot.send_message(cid, "💥 فجرت الأسعار", reply_markup=owner_menu()); return
-        if d=="a_crash":
-            if not is_owner(uid): return
-            for k in MARKET: MARKET[k]["price"]=max(20, MARKET[k]["price"]-random.randint(50,150))
-            bot.send_message(cid, "📉 انهيار", reply_markup=owner_menu()); return
-        if d=="a_gift_all":
-            if not is_owner(uid): return
-            m=InlineKeyboardMarkup(); m.add(InlineKeyboardButton("🎁 1000", callback_data="giftall_1000")); m.add(InlineKeyboardButton("🎁 10000", callback_data="giftall_10000")); m.add(InlineKeyboardButton("🔙", callback_data="owner")); bot.send_message(cid, "🎁 هدية للكل", reply_markup=m); return
-        if d.startswith("giftall_"):
-            if not is_owner(uid): return
-            amt=int(d.replace("giftall_","")); c=0
-            for k in list(data.keys()):
-                try: bot.send_message(int(k), f"🎁 هدية +{amt}"); data[k]["money"]+=amt; c+=1
-                except: pass
-            save(); bot.send_message(cid, f"✅ بعت لـ {c}", reply_markup=owner_menu()); return
-        if d=="a_bc":
-            if not is_owner(uid): return
-            m=InlineKeyboardMarkup(); m.add(InlineKeyboardButton("🎉 مسابقة", callback_data="bc_1")); m.add(InlineKeyboardButton("👋 ارجع", callback_data="bc_3")); m.add(InlineKeyboardButton("🔙", callback_data="owner")); bot.send_message(cid, "📢 بث", reply_markup=m); return
-        if d.startswith("bc_"):
-            if not is_owner(uid): return
-            texts={"bc_1":"🎉 مسابقة جديدة ادخل وخد 5000","bc_3":"👋 ارجع العب وخد فلوس"}
-            c=0
-            for k in list(data.keys()):
-                try: bot.send_message(int(k), texts[d]); c+=1
-                except: pass
-            bot.send_message(cid, f"✅ بعت لـ {c}", reply_markup=owner_menu()); return
-    except Exception as e:
-        print("Error:", e, traceback.format_exc())
-        try: bot.send_message(cid, "حصل مشكلة دوس تاني", reply_markup=menu(uid))
-        except: pass
-
-print("Bot FINAL MERGED - 1000+ lines - is running ✅")
-while True:
-    try: bot.infinity_polling(timeout=60, long_polling_timeout=60, skip_pending=True)
-    except Exception as e:
-        print(f"Restarting... {e}"); time.sleep(3)
+        with open(DATA_FILE,"r",encoding="utf-8") as f: return json.load(f)
+    except: return {"users":{}}
+def save_data(d):
+    with open(DATA_FILE,"w",encoding="utf-8") as f: json.dump(d,f,ensure_ascii=False,indent=2)
+def get_user(data,uid,user=None):
+    uid=str(uid)
+    if uid not in data["users"]: data["users"][uid]={"name":user.first_name if user else "لاعب","username":user.username if user and user.username else "","coins":5000,"gold":0,"level":1,"xp":0,"health":100,"weapons":[],"pets":[],"houses":[],"cars":[],"married_to":None,"married_name":None,"bank":0,"bank_balance":0,"bank_level":1,"demo_balance":10000,"portfolio":{},"trades":[],"trade_history":[],"last_daily":0,"last_work":0,"last_steal":0,"wins":0,"losses":0}
+    return data["users"][uid]
+def power_of(u,table):
+    t=0
+    for x in u:
+        if x in table: t+=table[x][2]
+    return t
+WEAPONS={}
+PETS={}
+HOUSES={}
+CARS={}
+MARKETS={}
+MARKETS["BTC"]=("₿ بيتكوين",65000.0)
+MARKETS["ETH"]=("Ξ ايثيريوم",3200.0)
+MARKETS["GOLD"]=("🥇 ذهب",2300.0)
+MARKETS["EURUSD"]=("💶 يورو",1.0850)
+MARKETS["GBPUSD"]=("💷 جنيه",1.2700)
+MARKETS["USDJPY"]=("💴 ين",151.20)
+MARKETS["SOL"]=("◎ سولانا",170.0)
+MARKETS["DOGE"]=("🐶 دوج",0.16)
+MARKETS["BNB"]=("🟡 بينانس",590.0)
+MARKETS["XAU"]=("🏅 ذهب XAU",2310.0)
+def get_market_price(s):
+    b=MARKETS[s][1]
+    n=b*(1+random.uniform(-0.03,0.03))
+    MARKETS[s]=(MARKETS[s][0],n)
+    return n
+WEAPONS["w1"]=("⚔️ سلاح 1",15000,110)
+WEAPONS["w2"]=("🗡️ سلاح 2",20000,120)
+WEAPONS["w3"]=("🔪 سلاح 3",25000,130)
+WEAPONS["w4"]=("🏹 سلاح 4",30000,140)
+WEAPONS["w5"]=("🔫 سلاح 5",35000,150)
+WEAPONS["w6"]=("💣 سلاح 6",40000,160)
+WEAPONS["w7"]=("🪓 سلاح 7",45000,170)
+WEAPONS["w8"]=("🔨 سلاح 8",50000,180)
+WEAPONS["w9"]=("⚔️ سلاح 9",55000,190)
+WEAPONS["w10"]=("🗡️ سلاح 10",60000,200)
+WEAPONS["w11"]=("🔪 سلاح 11",65000,210)
+WEAPONS["w12"]=("🏹 سلاح 12",70000,220)
+WEAPONS["w13"]=("🔫 سلاح 13",75000,230)
+WEAPONS["w14"]=("💣 سلاح 14",80000,240)
+WEAPONS["w15"]=("🪓 سلاح 15",85000,250)
+WEAPONS["w16"]=("🔨 سلاح 16",90000,260)
+WEAPONS["w17"]=("⚔️ سلاح 17",95000,270)
+WEAPONS["w18"]=("🗡️ سلاح 18",100000,280)
+WEAPONS["w19"]=("🔪 سلاح 19",105000,290)
+WEAPONS["w20"]=("🏹 سلاح 20",110000,300)
+WEAPONS["w21"]=("🔫 سلاح 21",115000,310)
+WEAPONS["w22"]=("💣 سلاح 22",120000,320)
+WEAPONS["w23"]=("🪓 سلاح 23",125000,330)
+WEAPONS["w24"]=("🔨 سلاح 24",130000,340)
+WEAPONS["w25"]=("⚔️ سلاح 25",135000,350)
+WEAPONS["w26"]=("🗡️ سلاح 26",140000,360)
+WEAPONS["w27"]=("🔪 سلاح 27",145000,370)
+WEAPONS["w28"]=("🏹 سلاح 28",150000,380)
+WEAPONS["w29"]=("🔫 سلاح 29",155000,390)
+WEAPONS["w30"]=("💣 سلاح 30",160000,400)
+WEAPONS["w31"]=("🪓 سلاح 31",165000,410)
+WEAPONS["w32"]=("🔨 سلاح 32",170000,420)
+WEAPONS["w33"]=("⚔️ سلاح 33",175000,430)
+WEAPONS["w34"]=("🗡️ سلاح 34",180000,440)
+WEAPONS["w35"]=("🔪 سلاح 35",185000,450)
+WEAPONS["w36"]=("🏹 سلاح 36",190000,460)
+WEAPONS["w37"]=("🔫 سلاح 37",195000,470)
+WEAPONS["w38"]=("💣 سلاح 38",200000,480)
+WEAPONS["w39"]=("🪓 سلاح 39",205000,490)
+WEAPONS["w40"]=("🔨 سلاح 40",210000,500)
+WEAPONS["w41"]=("⚔️ سلاح 41",215000,510)
+WEAPONS["w42"]=("🗡️ سلاح 42",220000,520)
+WEAPONS["w43"]=("🔪 سلاح 43",225000,530)
+WEAPONS["w44"]=("🏹 سلاح 44",230000,540)
+WEAPONS["w45"]=("🔫 سلاح 45",235000,550)
+WEAPONS["w46"]=("💣 سلاح 46",240000,560)
+WEAPONS["w47"]=("🪓 سلاح 47",245000,570)
+WEAPONS["w48"]=("🔨 سلاح 48",250000,580)
+WEAPONS["w49"]=("⚔️ سلاح 49",255000,590)
+WEAPONS["w50"]=("🗡️ سلاح 50",260000,600)
+WEAPONS["w51"]=("🔪 سلاح 51",265000,610)
+WEAPONS["w52"]=("🏹 سلاح 52",270000,620)
+WEAPONS["w53"]=("🔫 سلاح 53",275000,630)
+WEAPONS["w54"]=("💣 سلاح 54",280000,640)
+WEAPONS["w55"]=("🪓 سلاح 55",285000,650)
+WEAPONS["w56"]=("🔨 سلاح 56",290000,660)
+WEAPONS["w57"]=("⚔️ سلاح 57",295000,670)
+WEAPONS["w58"]=("🗡️ سلاح 58",300000,680)
+WEAPONS["w59"]=("🔪 سلاح 59",305000,690)
+WEAPONS["w60"]=("🏹 سلاح 60",310000,700)
+WEAPONS["w61"]=("🔫 سلاح 61",315000,710)
+WEAPONS["w62"]=("💣 سلاح 62",320000,720)
+WEAPONS["w63"]=("🪓 سلاح 63",325000,730)
+WEAPONS["w64"]=("🔨 سلاح 64",330000,740)
+WEAPONS["w65"]=("⚔️ سلاح 65",335000,750)
+WEAPONS["w66"]=("🗡️ سلاح 66",340000,760)
+WEAPONS["w67"]=("🔪 سلاح 67",345000,770)
+WEAPONS["w68"]=("🏹 سلاح 68",350000,780)
+WEAPONS["w69"]=("🔫 سلاح 69",355000,790)
+WEAPONS["w70"]=("💣 سلاح 70",360000,800)
+WEAPONS["w71"]=("🪓 سلاح 71",365000,810)
+WEAPONS["w72"]=("🔨 سلاح 72",370000,820)
+WEAPONS["w73"]=("⚔️ سلاح 73",375000,830)
+WEAPONS["w74"]=("🗡️ سلاح 74",380000,840)
+WEAPONS["w75"]=("🔪 سلاح 75",385000,850)
+WEAPONS["w76"]=("🏹 سلاح 76",390000,860)
+WEAPONS["w77"]=("🔫 سلاح 77",395000,870)
+WEAPONS["w78"]=("💣 سلاح 78",400000,880)
+WEAPONS["w79"]=("🪓 سلاح 79",405000,890)
+WEAPONS["w80"]=("🔨 سلاح 80",410000,900)
+WEAPONS["w81"]=("⚔️ سلاح 81",415000,910)
+WEAPONS["w82"]=("🗡️ سلاح 82",420000,920)
+WEAPONS["w83"]=("🔪 سلاح 83",425000,930)
+WEAPONS["w84"]=("🏹 سلاح 84",430000,940)
+WEAPONS["w85"]=("🔫 سلاح 85",435000,950)
+WEAPONS["w86"]=("💣 سلاح 86",440000,960)
+WEAPONS["w87"]=("🪓 سلاح 87",445000,970)
+WEAPONS["w88"]=("🔨 سلاح 88",450000,980)
+WEAPONS["w89"]=("⚔️ سلاح 89",455000,990)
+WEAPONS["w90"]=("🗡️ سلاح 90",460000,1000)
+WEAPONS["w91"]=("🔪 سلاح 91",465000,1010)
+WEAPONS["w92"]=("🏹 سلاح 92",470000,1020)
+WEAPONS["w93"]=("🔫 سلاح 93",475000,1030)
+WEAPONS["w94"]=("💣 سلاح 94",480000,1040)
+WEAPONS["w95"]=("🪓 سلاح 95",485000,1050)
+WEAPONS["w96"]=("🔨 سلاح 96",490000,1060)
+WEAPONS["w97"]=("⚔️ سلاح 97",495000,1070)
+WEAPONS["w98"]=("🗡️ سلاح 98",500000,1080)
+WEAPONS["w99"]=("🔪 سلاح 99",505000,1090)
+WEAPONS["w100"]=("🏹 سلاح 100",510000,1100)
+WEAPONS["w101"]=("🔫 سلاح 101",515000,1110)
+WEAPONS["w102"]=("💣 سلاح 102",520000,1120)
+WEAPONS["w103"]=("🪓 سلاح 103",525000,1130)
+WEAPONS["w104"]=("🔨 سلاح 104",530000,1140)
+WEAPONS["w105"]=("⚔️ سلاح 105",535000,1150)
+WEAPONS["w106"]=("🗡️ سلاح 106",540000,1160)
+WEAPONS["w107"]=("🔪 سلاح 107",545000,1170)
+WEAPONS["w108"]=("🏹 سلاح 108",550000,1180)
+WEAPONS["w109"]=("🔫 سلاح 109",555000,1190)
+WEAPONS["w110"]=("💣 سلاح 110",560000,1200)
+WEAPONS["w111"]=("🪓 سلاح 111",565000,1210)
+WEAPONS["w112"]=("🔨 سلاح 112",570000,1220)
+WEAPONS["w113"]=("⚔️ سلاح 113",575000,1230)
+WEAPONS["w114"]=("🗡️ سلاح 114",580000,1240)
+WEAPONS["w115"]=("🔪 سلاح 115",585000,1250)
+WEAPONS["w116"]=("🏹 سلاح 116",590000,1260)
+WEAPONS["w117"]=("🔫 سلاح 117",595000,1270)
+WEAPONS["w118"]=("💣 سلاح 118",600000,1280)
+WEAPONS["w119"]=("🪓 سلاح 119",605000,1290)
+WEAPONS["w120"]=("🔨 سلاح 120",610000,1300)
+WEAPONS["w121"]=("⚔️ سلاح 121",615000,1310)
+WEAPONS["w122"]=("🗡️ سلاح 122",620000,1320)
+WEAPONS["w123"]=("🔪 سلاح 123",625000,1330)
+WEAPONS["w124"]=("🏹 سلاح 124",630000,1340)
+WEAPONS["w125"]=("🔫 سلاح 125",635000,1350)
+WEAPONS["w126"]=("💣 سلاح 126",640000,1360)
+WEAPONS["w127"]=("🪓 سلاح 127",645000,1370)
+WEAPONS["w128"]=("🔨 سلاح 128",650000,1380)
+WEAPONS["w129"]=("⚔️ سلاح 129",655000,1390)
+WEAPONS["w130"]=("🗡️ سلاح 130",660000,1400)
+WEAPONS["w131"]=("🔪 سلاح 131",665000,1410)
+WEAPONS["w132"]=("🏹 سلاح 132",670000,1420)
+WEAPONS["w133"]=("🔫 سلاح 133",675000,1430)
+WEAPONS["w134"]=("💣 سلاح 134",680000,1440)
+WEAPONS["w135"]=("🪓 سلاح 135",685000,1450)
+WEAPONS["w136"]=("🔨 سلاح 136",690000,1460)
+WEAPONS["w137"]=("⚔️ سلاح 137",695000,1470)
+WEAPONS["w138"]=("🗡️ سلاح 138",700000,1480)
+WEAPONS["w139"]=("🔪 سلاح 139",705000,1490)
+WEAPONS["w140"]=("🏹 سلاح 140",710000,1500)
+WEAPONS["w141"]=("🔫 سلاح 141",715000,1510)
+WEAPONS["w142"]=("💣 سلاح 142",720000,1520)
+WEAPONS["w143"]=("🪓 سلاح 143",725000,1530)
+WEAPONS["w144"]=("🔨 سلاح 144",730000,1540)
+WEAPONS["w145"]=("⚔️ سلاح 145",735000,1550)
+WEAPONS["w146"]=("🗡️ سلاح 146",740000,1560)
+WEAPONS["w147"]=("🔪 سلاح 147",745000,1570)
+WEAPONS["w148"]=("🏹 سلاح 148",750000,1580)
+WEAPONS["w149"]=("🔫 سلاح 149",755000,1590)
+WEAPONS["w150"]=("💣 سلاح 150",760000,1600)
+WEAPONS["w151"]=("🪓 سلاح 151",765000,1610)
+WEAPONS["w152"]=("🔨 سلاح 152",770000,1620)
+WEAPONS["w153"]=("⚔️ سلاح 153",775000,1630)
+WEAPONS["w154"]=("🗡️ سلاح 154",780000,1640)
+WEAPONS["w155"]=("🔪 سلاح 155",785000,1650)
+WEAPONS["w156"]=("🏹 سلاح 156",790000,1660)
+WEAPONS["w157"]=("🔫 سلاح 157",795000,1670)
+WEAPONS["w158"]=("💣 سلاح 158",800000,1680)
+WEAPONS["w159"]=("🪓 سلاح 159",805000,1690)
+WEAPONS["w160"]=("🔨 سلاح 160",810000,1700)
+WEAPONS["w161"]=("⚔️ سلاح 161",815000,1710)
+WEAPONS["w162"]=("🗡️ سلاح 162",820000,1720)
+WEAPONS["w163"]=("🔪 سلاح 163",825000,1730)
+WEAPONS["w164"]=("🏹 سلاح 164",830000,1740)
+WEAPONS["w165"]=("🔫 سلاح 165",835000,1750)
+WEAPONS["w166"]=("💣 سلاح 166",840000,1760)
+WEAPONS["w167"]=("🪓 سلاح 167",845000,1770)
+WEAPONS["w168"]=("🔨 سلاح 168",850000,1780)
+WEAPONS["w169"]=("⚔️ سلاح 169",855000,1790)
+WEAPONS["w170"]=("🗡️ سلاح 170",860000,1800)
+WEAPONS["w171"]=("🔪 سلاح 171",865000,1810)
+WEAPONS["w172"]=("🏹 سلاح 172",870000,1820)
+WEAPONS["w173"]=("🔫 سلاح 173",875000,1830)
+WEAPONS["w174"]=("💣 سلاح 174",880000,1840)
+WEAPONS["w175"]=("🪓 سلاح 175",885000,1850)
+WEAPONS["w176"]=("🔨 سلاح 176",890000,1860)
+WEAPONS["w177"]=("⚔️ سلاح 177",895000,1870)
+WEAPONS["w178"]=("🗡️ سلاح 178",900000,1880)
+WEAPONS["w179"]=("🔪 سلاح 179",905000,1890)
+WEAPONS["w180"]=("🏹 سلاح 180",910000,1900)
+WEAPONS["w181"]=("🔫 سلاح 181",915000,1910)
+WEAPONS["w182"]=("💣 سلاح 182",920000,1920)
+WEAPONS["w183"]=("🪓 سلاح 183",925000,1930)
+WEAPONS["w184"]=("🔨 سلاح 184",930000,1940)
+WEAPONS["w185"]=("⚔️ سلاح 185",935000,1950)
+WEAPONS["w186"]=("🗡️ سلاح 186",940000,1960)
+WEAPONS["w187"]=("🔪 سلاح 187",945000,1970)
+WEAPONS["w188"]=("🏹 سلاح 188",950000,1980)
+WEAPONS["w189"]=("🔫 سلاح 189",955000,1990)
+WEAPONS["w190"]=("💣 سلاح 190",960000,2000)
+WEAPONS["w191"]=("🪓 سلاح 191",965000,2010)
+WEAPONS["w192"]=("🔨 سلاح 192",970000,2020)
+WEAPONS["w193"]=("⚔️ سلاح 193",975000,2030)
+WEAPONS["w194"]=("🗡️ سلاح 194",980000,2040)
+WEAPONS["w195"]=("🔪 سلاح 195",985000,2050)
+WEAPONS["w196"]=("🏹 سلاح 196",990000,2060)
+WEAPONS["w197"]=("🔫 سلاح 197",995000,2070)
+WEAPONS["w198"]=("💣 سلاح 198",1000000,2080)
+WEAPONS["w199"]=("🪓 سلاح 199",1005000,2090)
+WEAPONS["w200"]=("🔨 سلاح 200",1010000,2100)
+WEAPONS["w201"]=("⚔️ سلاح 201",1015000,2110)
+WEAPONS["w202"]=("🗡️ سلاح 202",1020000,2120)
+WEAPONS["w203"]=("🔪 سلاح 203",1025000,2130)
+WEAPONS["w204"]=("🏹 سلاح 204",1030000,2140)
+WEAPONS["w205"]=("🔫 سلاح 205",1035000,2150)
+WEAPONS["w206"]=("💣 سلاح 206",1040000,2160)
+WEAPONS["w207"]=("🪓 سلاح 207",1045000,2170)
+WEAPONS["w208"]=("🔨 سلاح 208",1050000,2180)
+WEAPONS["w209"]=("⚔️ سلاح 209",1055000,2190)
+WEAPONS["w210"]=("🗡️ سلاح 210",1060000,2200)
+WEAPONS["w211"]=("🔪 سلاح 211",1065000,2210)
+WEAPONS["w212"]=("🏹 سلاح 212",1070000,2220)
+WEAPONS["w213"]=("🔫 سلاح 213",1075000,2230)
+WEAPONS["w214"]=("💣 سلاح 214",1080000,2240)
+WEAPONS["w215"]=("🪓 سلاح 215",1085000,2250)
+WEAPONS["w216"]=("🔨 سلاح 216",1090000,2260)
+WEAPONS["w217"]=("⚔️ سلاح 217",1095000,2270)
+WEAPONS["w218"]=("🗡️ سلاح 218",1100000,2280)
+WEAPONS["w219"]=("🔪 سلاح 219",1105000,2290)
+WEAPONS["w220"]=("🏹 سلاح 220",1110000,2300)
+WEAPONS["w221"]=("🔫 سلاح 221",1115000,2310)
+WEAPONS["w222"]=("💣 سلاح 222",1120000,2320)
+WEAPONS["w223"]=("🪓 سلاح 223",1125000,2330)
+WEAPONS["w224"]=("🔨 سلاح 224",1130000,2340)
+WEAPONS["w225"]=("⚔️ سلاح 225",1135000,2350)
+WEAPONS["w226"]=("🗡️ سلاح 226",1140000,2360)
+WEAPONS["w227"]=("🔪 سلاح 227",1145000,2370)
+WEAPONS["w228"]=("🏹 سلاح 228",1150000,2380)
+WEAPONS["w229"]=("🔫 سلاح 229",1155000,2390)
+WEAPONS["w230"]=("💣 سلاح 230",1160000,2400)
+WEAPONS["w231"]=("🪓 سلاح 231",1165000,2410)
+WEAPONS["w232"]=("🔨 سلاح 232",1170000,2420)
+WEAPONS["w233"]=("⚔️ سلاح 233",1175000,2430)
+WEAPONS["w234"]=("🗡️ سلاح 234",1180000,2440)
+WEAPONS["w235"]=("🔪 سلاح 235",1185000,2450)
+WEAPONS["w236"]=("🏹 سلاح 236",1190000,2460)
+WEAPONS["w237"]=("🔫 سلاح 237",1195000,2470)
+WEAPONS["w238"]=("💣 سلاح 238",1200000,2480)
+WEAPONS["w239"]=("🪓 سلاح 239",1205000,2490)
+WEAPONS["w240"]=("🔨 سلاح 240",1210000,2500)
+WEAPONS["w241"]=("⚔️ سلاح 241",1215000,2510)
+WEAPONS["w242"]=("🗡️ سلاح 242",1220000,2520)
+WEAPONS["w243"]=("🔪 سلاح 243",1225000,2530)
+WEAPONS["w244"]=("🏹 سلاح 244",1230000,2540)
+WEAPONS["w245"]=("🔫 سلاح 245",1235000,2550)
+WEAPONS["w246"]=("💣 سلاح 246",1240000,2560)
+WEAPONS["w247"]=("🪓 سلاح 247",1245000,2570)
+WEAPONS["w248"]=("🔨 سلاح 248",1250000,2580)
+WEAPONS["w249"]=("⚔️ سلاح 249",1255000,2590)
+WEAPONS["w250"]=("🗡️ سلاح 250",1260000,2600)
+WEAPONS["w251"]=("🔪 سلاح 251",1265000,2610)
+WEAPONS["w252"]=("🏹 سلاح 252",1270000,2620)
+WEAPONS["w253"]=("🔫 سلاح 253",1275000,2630)
+WEAPONS["w254"]=("💣 سلاح 254",1280000,2640)
+WEAPONS["w255"]=("🪓 سلاح 255",1285000,2650)
+WEAPONS["w256"]=("🔨 سلاح 256",1290000,2660)
+WEAPONS["w257"]=("⚔️ سلاح 257",1295000,2670)
+WEAPONS["w258"]=("🗡️ سلاح 258",1300000,2680)
+WEAPONS["w259"]=("🔪 سلاح 259",1305000,2690)
+WEAPONS["w260"]=("🏹 سلاح 260",1310000,2700)
+WEAPONS["w261"]=("🔫 سلاح 261",1315000,2710)
+WEAPONS["w262"]=("💣 سلاح 262",1320000,2720)
+WEAPONS["w263"]=("🪓 سلاح 263",1325000,2730)
+WEAPONS["w264"]=("🔨 سلاح 264",1330000,2740)
+WEAPONS["w265"]=("⚔️ سلاح 265",1335000,2750)
+WEAPONS["w266"]=("🗡️ سلاح 266",1340000,2760)
+WEAPONS["w267"]=("🔪 سلاح 267",1345000,2770)
+WEAPONS["w268"]=("🏹 سلاح 268",1350000,2780)
+WEAPONS["w269"]=("🔫 سلاح 269",1355000,2790)
+WEAPONS["w270"]=("💣 سلاح 270",1360000,2800)
+WEAPONS["w271"]=("🪓 سلاح 271",1365000,2810)
+WEAPONS["w272"]=("🔨 سلاح 272",1370000,2820)
+WEAPONS["w273"]=("⚔️ سلاح 273",1375000,2830)
+WEAPONS["w274"]=("🗡️ سلاح 274",1380000,2840)
+WEAPONS["w275"]=("🔪 سلاح 275",1385000,2850)
+WEAPONS["w276"]=("🏹 سلاح 276",1390000,2860)
+WEAPONS["w277"]=("🔫 سلاح 277",1395000,2870)
+WEAPONS["w278"]=("💣 سلاح 278",1400000,2880)
+WEAPONS["w279"]=("🪓 سلاح 279",1405000,2890)
+WEAPONS["w280"]=("🔨 سلاح 280",1410000,2900)
+WEAPONS["w281"]=("⚔️ سلاح 281",1415000,2910)
+WEAPONS["w282"]=("🗡️ سلاح 282",1420000,2920)
+WEAPONS["w283"]=("🔪 سلاح 283",1425000,2930)
+WEAPONS["w284"]=("🏹 سلاح 284",1430000,2940)
+WEAPONS["w285"]=("🔫 سلاح 285",1435000,2950)
+WEAPONS["w286"]=("💣 سلاح 286",1440000,2960)
+WEAPONS["w287"]=("🪓 سلاح 287",1445000,2970)
+WEAPONS["w288"]=("🔨 سلاح 288",1450000,2980)
+WEAPONS["w289"]=("⚔️ سلاح 289",1455000,2990)
+WEAPONS["w290"]=("🗡️ سلاح 290",1460000,3000)
+WEAPONS["w291"]=("🔪 سلاح 291",1465000,3010)
+WEAPONS["w292"]=("🏹 سلاح 292",1470000,3020)
+WEAPONS["w293"]=("🔫 سلاح 293",1475000,3030)
+WEAPONS["w294"]=("💣 سلاح 294",1480000,3040)
+WEAPONS["w295"]=("🪓 سلاح 295",1485000,3050)
+WEAPONS["w296"]=("🔨 سلاح 296",1490000,3060)
+WEAPONS["w297"]=("⚔️ سلاح 297",1495000,3070)
+WEAPONS["w298"]=("🗡️ سلاح 298",1500000,3080)
+WEAPONS["w299"]=("🔪 سلاح 299",1505000,3090)
+WEAPONS["w300"]=("🏹 سلاح 300",1510000,3100)
+WEAPONS["w301"]=("🔫 سلاح 301",1515000,3110)
+WEAPONS["w302"]=("💣 سلاح 302",1520000,3120)
+WEAPONS["w303"]=("🪓 سلاح 303",1525000,3130)
+WEAPONS["w304"]=("🔨 سلاح 304",1530000,3140)
+WEAPONS["w305"]=("⚔️ سلاح 305",1535000,3150)
+WEAPONS["w306"]=("🗡️ سلاح 306",1540000,3160)
+WEAPONS["w307"]=("🔪 سلاح 307",1545000,3170)
+WEAPONS["w308"]=("🏹 سلاح 308",1550000,3180)
+WEAPONS["w309"]=("🔫 سلاح 309",1555000,3190)
+WEAPONS["w310"]=("💣 سلاح 310",1560000,3200)
+WEAPONS["w311"]=("🪓 سلاح 311",1565000,3210)
+WEAPONS["w312"]=("🔨 سلاح 312",1570000,3220)
+WEAPONS["w313"]=("⚔️ سلاح 313",1575000,3230)
+WEAPONS["w314"]=("🗡️ سلاح 314",1580000,3240)
+WEAPONS["w315"]=("🔪 سلاح 315",1585000,3250)
+WEAPONS["w316"]=("🏹 سلاح 316",1590000,3260)
+WEAPONS["w317"]=("🔫 سلاح 317",1595000,3270)
+WEAPONS["w318"]=("💣 سلاح 318",1600000,3280)
+WEAPONS["w319"]=("🪓 سلاح 319",1605000,3290)
+WEAPONS["w320"]=("🔨 سلاح 320",1610000,3300)
+WEAPONS["w321"]=("⚔️ سلاح 321",1615000,3310)
+WEAPONS["w322"]=("🗡️ سلاح 322",1620000,3320)
+WEAPONS["w323"]=("🔪 سلاح 323",1625000,3330)
+WEAPONS["w324"]=("🏹 سلاح 324",1630000,3340)
+WEAPONS["w325"]=("🔫 سلاح 325",1635000,3350)
+WEAPONS["w326"]=("💣 سلاح 326",1640000,3360)
+WEAPONS["w327"]=("🪓 سلاح 327",1645000,3370)
+WEAPONS["w328"]=("🔨 سلاح 328",1650000,3380)
+WEAPONS["w329"]=("⚔️ سلاح 329",1655000,3390)
+WEAPONS["w330"]=("🗡️ سلاح 330",1660000,3400)
+WEAPONS["w331"]=("🔪 سلاح 331",1665000,3410)
+WEAPONS["w332"]=("🏹 سلاح 332",1670000,3420)
+WEAPONS["w333"]=("🔫 سلاح 333",1675000,3430)
+WEAPONS["w334"]=("💣 سلاح 334",1680000,3440)
+WEAPONS["w335"]=("🪓 سلاح 335",1685000,3450)
+WEAPONS["w336"]=("🔨 سلاح 336",1690000,3460)
+WEAPONS["w337"]=("⚔️ سلاح 337",1695000,3470)
+WEAPONS["w338"]=("🗡️ سلاح 338",1700000,3480)
+WEAPONS["w339"]=("🔪 سلاح 339",1705000,3490)
+WEAPONS["w340"]=("🏹 سلاح 340",1710000,3500)
+WEAPONS["w341"]=("🔫 سلاح 341",1715000,3510)
+WEAPONS["w342"]=("💣 سلاح 342",1720000,3520)
+WEAPONS["w343"]=("🪓 سلاح 343",1725000,3530)
+WEAPONS["w344"]=("🔨 سلاح 344",1730000,3540)
+WEAPONS["w345"]=("⚔️ سلاح 345",1735000,3550)
+WEAPONS["w346"]=("🗡️ سلاح 346",1740000,3560)
+WEAPONS["w347"]=("🔪 سلاح 347",1745000,3570)
+WEAPONS["w348"]=("🏹 سلاح 348",1750000,3580)
+WEAPONS["w349"]=("🔫 سلاح 349",1755000,3590)
+WEAPONS["w350"]=("💣 سلاح 350",1760000,3600)
+WEAPONS["w351"]=("🪓 سلاح 351",1765000,3610)
+WEAPONS["w352"]=("🔨 سلاح 352",1770000,3620)
+WEAPONS["w353"]=("⚔️ سلاح 353",1775000,3630)
+WEAPONS["w354"]=("🗡️ سلاح 354",1780000,3640)
+WEAPONS["w355"]=("🔪 سلاح 355",1785000,3650)
+WEAPONS["w356"]=("🏹 سلاح 356",1790000,3660)
+WEAPONS["w357"]=("🔫 سلاح 357",1795000,3670)
+WEAPONS["w358"]=("💣 سلاح 358",1800000,3680)
+WEAPONS["w359"]=("🪓 سلاح 359",1805000,3690)
+WEAPONS["w360"]=("🔨 سلاح 360",1810000,3700)
+WEAPONS["w361"]=("⚔️ سلاح 361",1815000,3710)
+WEAPONS["w362"]=("🗡️ سلاح 362",1820000,3720)
+WEAPONS["w363"]=("🔪 سلاح 363",1825000,3730)
+WEAPONS["w364"]=("🏹 سلاح 364",1830000,3740)
+WEAPONS["w365"]=("🔫 سلاح 365",1835000,3750)
+WEAPONS["w366"]=("💣 سلاح 366",1840000,3760)
+WEAPONS["w367"]=("🪓 سلاح 367",1845000,3770)
+WEAPONS["w368"]=("🔨 سلاح 368",1850000,3780)
+WEAPONS["w369"]=("⚔️ سلاح 369",1855000,3790)
+WEAPONS["w370"]=("🗡️ سلاح 370",1860000,3800)
+WEAPONS["w371"]=("🔪 سلاح 371",1865000,3810)
+WEAPONS["w372"]=("🏹 سلاح 372",1870000,3820)
+WEAPONS["w373"]=("🔫 سلاح 373",1875000,3830)
+WEAPONS["w374"]=("💣 سلاح 374",1880000,3840)
+WEAPONS["w375"]=("🪓 سلاح 375",1885000,3850)
+WEAPONS["w376"]=("🔨 سلاح 376",1890000,3860)
+WEAPONS["w377"]=("⚔️ سلاح 377",1895000,3870)
+WEAPONS["w378"]=("🗡️ سلاح 378",1900000,3880)
+WEAPONS["w379"]=("🔪 سلاح 379",1905000,3890)
+WEAPONS["w380"]=("🏹 سلاح 380",1910000,3900)
+WEAPONS["w381"]=("🔫 سلاح 381",1915000,3910)
+WEAPONS["w382"]=("💣 سلاح 382",1920000,3920)
+WEAPONS["w383"]=("🪓 سلاح 383",1925000,3930)
+WEAPONS["w384"]=("🔨 سلاح 384",1930000,3940)
+WEAPONS["w385"]=("⚔️ سلاح 385",1935000,3950)
+WEAPONS["w386"]=("🗡️ سلاح 386",1940000,3960)
+WEAPONS["w387"]=("🔪 سلاح 387",1945000,3970)
+WEAPONS["w388"]=("🏹 سلاح 388",1950000,3980)
+WEAPONS["w389"]=("🔫 سلاح 389",1955000,3990)
+WEAPONS["w390"]=("💣 سلاح 390",1960000,4000)
+WEAPONS["w391"]=("🪓 سلاح 391",1965000,4010)
+WEAPONS["w392"]=("🔨 سلاح 392",1970000,4020)
+WEAPONS["w393"]=("⚔️ سلاح 393",1975000,4030)
+WEAPONS["w394"]=("🗡️ سلاح 394",1980000,4040)
+WEAPONS["w395"]=("🔪 سلاح 395",1985000,4050)
+WEAPONS["w396"]=("🏹 سلاح 396",1990000,4060)
+WEAPONS["w397"]=("🔫 سلاح 397",1995000,4070)
+WEAPONS["w398"]=("💣 سلاح 398",2000000,4080)
+WEAPONS["w399"]=("🪓 سلاح 399",2005000,4090)
+WEAPONS["w400"]=("🔨 سلاح 400",2010000,4100)
+WEAPONS["w401"]=("⚔️ سلاح 401",2015000,4110)
+WEAPONS["w402"]=("🗡️ سلاح 402",2020000,4120)
+WEAPONS["w403"]=("🔪 سلاح 403",2025000,4130)
+WEAPONS["w404"]=("🏹 سلاح 404",2030000,4140)
+WEAPONS["w405"]=("🔫 سلاح 405",2035000,4150)
+WEAPONS["w406"]=("💣 سلاح 406",2040000,4160)
+WEAPONS["w407"]=("🪓 سلاح 407",2045000,4170)
+WEAPONS["w408"]=("🔨 سلاح 408",2050000,4180)
+WEAPONS["w409"]=("⚔️ سلاح 409",2055000,4190)
+WEAPONS["w410"]=("🗡️ سلاح 410",2060000,4200)
+WEAPONS["w411"]=("🔪 سلاح 411",2065000,4210)
+WEAPONS["w412"]=("🏹 سلاح 412",2070000,4220)
+WEAPONS["w413"]=("🔫 سلاح 413",2075000,4230)
+WEAPONS["w414"]=("💣 سلاح 414",2080000,4240)
+WEAPONS["w415"]=("🪓 سلاح 415",2085000,4250)
+WEAPONS["w416"]=("🔨 سلاح 416",2090000,4260)
+WEAPONS["w417"]=("⚔️ سلاح 417",2095000,4270)
+WEAPONS["w418"]=("🗡️ سلاح 418",2100000,4280)
+WEAPONS["w419"]=("🔪 سلاح 419",2105000,4290)
+WEAPONS["w420"]=("🏹 سلاح 420",2110000,4300)
+WEAPONS["w421"]=("🔫 سلاح 421",2115000,4310)
+WEAPONS["w422"]=("💣 سلاح 422",2120000,4320)
+WEAPONS["w423"]=("🪓 سلاح 423",2125000,4330)
+WEAPONS["w424"]=("🔨 سلاح 424",2130000,4340)
+WEAPONS["w425"]=("⚔️ سلاح 425",2135000,4350)
+WEAPONS["w426"]=("🗡️ سلاح 426",2140000,4360)
+WEAPONS["w427"]=("🔪 سلاح 427",2145000,4370)
+WEAPONS["w428"]=("🏹 سلاح 428",2150000,4380)
+WEAPONS["w429"]=("🔫 سلاح 429",2155000,4390)
+WEAPONS["w430"]=("💣 سلاح 430",2160000,4400)
+WEAPONS["w431"]=("🪓 سلاح 431",2165000,4410)
+WEAPONS["w432"]=("🔨 سلاح 432",2170000,4420)
+WEAPONS["w433"]=("⚔️ سلاح 433",2175000,4430)
+WEAPONS["w434"]=("🗡️ سلاح 434",2180000,4440)
+WEAPONS["w435"]=("🔪 سلاح 435",2185000,4450)
+WEAPONS["w436"]=("🏹 سلاح 436",2190000,4460)
+WEAPONS["w437"]=("🔫 سلاح 437",2195000,4470)
+WEAPONS["w438"]=("💣 سلاح 438",2200000,4480)
+WEAPONS["w439"]=("🪓 سلاح 439",2205000,4490)
+WEAPONS["w440"]=("🔨 سلاح 440",2210000,4500)
+WEAPONS["w441"]=("⚔️ سلاح 441",2215000,4510)
+WEAPONS["w442"]=("🗡️ سلاح 442",2220000,4520)
+WEAPONS["w443"]=("🔪 سلاح 443",2225000,4530)
+WEAPONS["w444"]=("🏹 سلاح 444",2230000,4540)
+WEAPONS["w445"]=("🔫 سلاح 445",2235000,4550)
+WEAPONS["w446"]=("💣 سلاح 446",2240000,4560)
+WEAPONS["w447"]=("🪓 سلاح 447",2245000,4570)
+WEAPONS["w448"]=("🔨 سلاح 448",2250000,4580)
+WEAPONS["w449"]=("⚔️ سلاح 449",2255000,4590)
+WEAPONS["w450"]=("🗡️ سلاح 450",2260000,4600)
+WEAPONS["w451"]=("🔪 سلاح 451",2265000,4610)
+WEAPONS["w452"]=("🏹 سلاح 452",2270000,4620)
+WEAPONS["w453"]=("🔫 سلاح 453",2275000,4630)
+WEAPONS["w454"]=("💣 سلاح 454",2280000,4640)
+WEAPONS["w455"]=("🪓 سلاح 455",2285000,4650)
+WEAPONS["w456"]=("🔨 سلاح 456",2290000,4660)
+WEAPONS["w457"]=("⚔️ سلاح 457",2295000,4670)
+WEAPONS["w458"]=("🗡️ سلاح 458",2300000,4680)
+WEAPONS["w459"]=("🔪 سلاح 459",2305000,4690)
+WEAPONS["w460"]=("🏹 سلاح 460",2310000,4700)
+WEAPONS["w461"]=("🔫 سلاح 461",2315000,4710)
+WEAPONS["w462"]=("💣 سلاح 462",2320000,4720)
+WEAPONS["w463"]=("🪓 سلاح 463",2325000,4730)
+WEAPONS["w464"]=("🔨 سلاح 464",2330000,4740)
+WEAPONS["w465"]=("⚔️ سلاح 465",2335000,4750)
+WEAPONS["w466"]=("🗡️ سلاح 466",2340000,4760)
+WEAPONS["w467"]=("🔪 سلاح 467",2345000,4770)
+WEAPONS["w468"]=("🏹 سلاح 468",2350000,4780)
+WEAPONS["w469"]=("🔫 سلاح 469",2355000,4790)
+WEAPONS["w470"]=("💣 سلاح 470",2360000,4800)
+WEAPONS["w471"]=("🪓 سلاح 471",2365000,4810)
+WEAPONS["w472"]=("🔨 سلاح 472",2370000,4820)
+WEAPONS["w473"]=("⚔️ سلاح 473",2375000,4830)
+WEAPONS["w474"]=("🗡️ سلاح 474",2380000,4840)
+WEAPONS["w475"]=("🔪 سلاح 475",2385000,4850)
+WEAPONS["w476"]=("🏹 سلاح 476",2390000,4860)
+WEAPONS["w477"]=("🔫 سلاح 477",2395000,4870)
+WEAPONS["w478"]=("💣 سلاح 478",2400000,4880)
+WEAPONS["w479"]=("🪓 سلاح 479",2405000,4890)
+WEAPONS["w480"]=("🔨 سلاح 480",2410000,4900)
+WEAPONS["w481"]=("⚔️ سلاح 481",2415000,4910)
+WEAPONS["w482"]=("🗡️ سلاح 482",2420000,4920)
+WEAPONS["w483"]=("🔪 سلاح 483",2425000,4930)
+WEAPONS["w484"]=("🏹 سلاح 484",2430000,4940)
+WEAPONS["w485"]=("🔫 سلاح 485",2435000,4950)
+WEAPONS["w486"]=("💣 سلاح 486",2440000,4960)
+WEAPONS["w487"]=("🪓 سلاح 487",2445000,4970)
+WEAPONS["w488"]=("🔨 سلاح 488",2450000,4980)
+WEAPONS["w489"]=("⚔️ سلاح 489",2455000,4990)
+WEAPONS["w490"]=("🗡️ سلاح 490",2460000,5000)
+WEAPONS["w491"]=("🔪 سلاح 491",2465000,5010)
+WEAPONS["w492"]=("🏹 سلاح 492",2470000,5020)
+WEAPONS["w493"]=("🔫 سلاح 493",2475000,5030)
+WEAPONS["w494"]=("💣 سلاح 494",2480000,5040)
+WEAPONS["w495"]=("🪓 سلاح 495",2485000,5050)
+WEAPONS["w496"]=("🔨 سلاح 496",2490000,5060)
+WEAPONS["w497"]=("⚔️ سلاح 497",2495000,5070)
+WEAPONS["w498"]=("🗡️ سلاح 498",2500000,5080)
+WEAPONS["w499"]=("🔪 سلاح 499",2505000,5090)
+WEAPONS["w500"]=("🏹 سلاح 500",2510000,5100)
+PETS["p1"]=("🐶 حيوان 1",12000,88)
+PETS["p2"]=("🐱 حيوان 2",16000,96)
+PETS["p3"]=("🦁 حيوان 3",20000,104)
+PETS["p4"]=("🐯 حيوان 4",24000,112)
+PETS["p5"]=("🐺 حيوان 5",28000,120)
+PETS["p6"]=("🐴 حيوان 6",32000,128)
+PETS["p7"]=("🦅 حيوان 7",36000,136)
+PETS["p8"]=("🐍 حيوان 8",40000,144)
+PETS["p9"]=("🐶 حيوان 9",44000,152)
+PETS["p10"]=("🐱 حيوان 10",48000,160)
+PETS["p11"]=("🦁 حيوان 11",52000,168)
+PETS["p12"]=("🐯 حيوان 12",56000,176)
+PETS["p13"]=("🐺 حيوان 13",60000,184)
+PETS["p14"]=("🐴 حيوان 14",64000,192)
+PETS["p15"]=("🦅 حيوان 15",68000,200)
+PETS["p16"]=("🐍 حيوان 16",72000,208)
+PETS["p17"]=("🐶 حيوان 17",76000,216)
+PETS["p18"]=("🐱 حيوان 18",80000,224)
+PETS["p19"]=("🦁 حيوان 19",84000,232)
+PETS["p20"]=("🐯 حيوان 20",88000,240)
+PETS["p21"]=("🐺 حيوان 21",92000,248)
+PETS["p22"]=("🐴 حيوان 22",96000,256)
+PETS["p23"]=("🦅 حيوان 23",100000,264)
+PETS["p24"]=("🐍 حيوان 24",104000,272)
+PETS["p25"]=("🐶 حيوان 25",108000,280)
+PETS["p26"]=("🐱 حيوان 26",112000,288)
+PETS["p27"]=("🦁 حيوان 27",116000,296)
+PETS["p28"]=("🐯 حيوان 28",120000,304)
+PETS["p29"]=("🐺 حيوان 29",124000,312)
+PETS["p30"]=("🐴 حيوان 30",128000,320)
+PETS["p31"]=("🦅 حيوان 31",132000,328)
+PETS["p32"]=("🐍 حيوان 32",136000,336)
+PETS["p33"]=("🐶 حيوان 33",140000,344)
+PETS["p34"]=("🐱 حيوان 34",144000,352)
+PETS["p35"]=("🦁 حيوان 35",148000,360)
+PETS["p36"]=("🐯 حيوان 36",152000,368)
+PETS["p37"]=("🐺 حيوان 37",156000,376)
+PETS["p38"]=("🐴 حيوان 38",160000,384)
+PETS["p39"]=("🦅 حيوان 39",164000,392)
+PETS["p40"]=("🐍 حيوان 40",168000,400)
+PETS["p41"]=("🐶 حيوان 41",172000,408)
+PETS["p42"]=("🐱 حيوان 42",176000,416)
+PETS["p43"]=("🦁 حيوان 43",180000,424)
+PETS["p44"]=("🐯 حيوان 44",184000,432)
+PETS["p45"]=("🐺 حيوان 45",188000,440)
+PETS["p46"]=("🐴 حيوان 46",192000,448)
+PETS["p47"]=("🦅 حيوان 47",196000,456)
+PETS["p48"]=("🐍 حيوان 48",200000,464)
+PETS["p49"]=("🐶 حيوان 49",204000,472)
+PETS["p50"]=("🐱 حيوان 50",208000,480)
+PETS["p51"]=("🦁 حيوان 51",212000,488)
+PETS["p52"]=("🐯 حيوان 52",216000,496)
+PETS["p53"]=("🐺 حيوان 53",220000,504)
+PETS["p54"]=("🐴 حيوان 54",224000,512)
+PETS["p55"]=("🦅 حيوان 55",228000,520)
+PETS["p56"]=("🐍 حيوان 56",232000,528)
+PETS["p57"]=("🐶 حيوان 57",236000,536)
+PETS["p58"]=("🐱 حيوان 58",240000,544)
+PETS["p59"]=("🦁 حيوان 59",244000,552)
+PETS["p60"]=("🐯 حيوان 60",248000,560)
+PETS["p61"]=("🐺 حيوان 61",252000,568)
+PETS["p62"]=("🐴 حيوان 62",256000,576)
+PETS["p63"]=("🦅 حيوان 63",260000,584)
+PETS["p64"]=("🐍 حيوان 64",264000,592)
+PETS["p65"]=("🐶 حيوان 65",268000,600)
+PETS["p66"]=("🐱 حيوان 66",272000,608)
+PETS["p67"]=("🦁 حيوان 67",276000,616)
+PETS["p68"]=("🐯 حيوان 68",280000,624)
+PETS["p69"]=("🐺 حيوان 69",284000,632)
+PETS["p70"]=("🐴 حيوان 70",288000,640)
+PETS["p71"]=("🦅 حيوان 71",292000,648)
+PETS["p72"]=("🐍 حيوان 72",296000,656)
+PETS["p73"]=("🐶 حيوان 73",300000,664)
+PETS["p74"]=("🐱 حيوان 74",304000,672)
+PETS["p75"]=("🦁 حيوان 75",308000,680)
+PETS["p76"]=("🐯 حيوان 76",312000,688)
+PETS["p77"]=("🐺 حيوان 77",316000,696)
+PETS["p78"]=("🐴 حيوان 78",320000,704)
+PETS["p79"]=("🦅 حيوان 79",324000,712)
+PETS["p80"]=("🐍 حيوان 80",328000,720)
+PETS["p81"]=("🐶 حيوان 81",332000,728)
+PETS["p82"]=("🐱 حيوان 82",336000,736)
+PETS["p83"]=("🦁 حيوان 83",340000,744)
+PETS["p84"]=("🐯 حيوان 84",344000,752)
+PETS["p85"]=("🐺 حيوان 85",348000,760)
+PETS["p86"]=("🐴 حيوان 86",352000,768)
+PETS["p87"]=("🦅 حيوان 87",356000,776)
+PETS["p88"]=("🐍 حيوان 88",360000,784)
+PETS["p89"]=("🐶 حيوان 89",364000,792)
+PETS["p90"]=("🐱 حيوان 90",368000,800)
+PETS["p91"]=("🦁 حيوان 91",372000,808)
+PETS["p92"]=("🐯 حيوان 92",376000,816)
+PETS["p93"]=("🐺 حيوان 93",380000,824)
+PETS["p94"]=("🐴 حيوان 94",384000,832)
+PETS["p95"]=("🦅 حيوان 95",388000,840)
+PETS["p96"]=("🐍 حيوان 96",392000,848)
+PETS["p97"]=("🐶 حيوان 97",396000,856)
+PETS["p98"]=("🐱 حيوان 98",400000,864)
+PETS["p99"]=("🦁 حيوان 99",404000,872)
+PETS["p100"]=("🐯 حيوان 100",408000,880)
+PETS["p101"]=("🐺 حيوان 101",412000,888)
+PETS["p102"]=("🐴 حيوان 102",416000,896)
+PETS["p103"]=("🦅 حيوان 103",420000,904)
+PETS["p104"]=("🐍 حيوان 104",424000,912)
+PETS["p105"]=("🐶 حيوان 105",428000,920)
+PETS["p106"]=("🐱 حيوان 106",432000,928)
+PETS["p107"]=("🦁 حيوان 107",436000,936)
+PETS["p108"]=("🐯 حيوان 108",440000,944)
+PETS["p109"]=("🐺 حيوان 109",444000,952)
+PETS["p110"]=("🐴 حيوان 110",448000,960)
+PETS["p111"]=("🦅 حيوان 111",452000,968)
+PETS["p112"]=("🐍 حيوان 112",456000,976)
+PETS["p113"]=("🐶 حيوان 113",460000,984)
+PETS["p114"]=("🐱 حيوان 114",464000,992)
+PETS["p115"]=("🦁 حيوان 115",468000,1000)
+PETS["p116"]=("🐯 حيوان 116",472000,1008)
+PETS["p117"]=("🐺 حيوان 117",476000,1016)
+PETS["p118"]=("🐴 حيوان 118",480000,1024)
+PETS["p119"]=("🦅 حيوان 119",484000,1032)
+PETS["p120"]=("🐍 حيوان 120",488000,1040)
+PETS["p121"]=("🐶 حيوان 121",492000,1048)
+PETS["p122"]=("🐱 حيوان 122",496000,1056)
+PETS["p123"]=("🦁 حيوان 123",500000,1064)
+PETS["p124"]=("🐯 حيوان 124",504000,1072)
+PETS["p125"]=("🐺 حيوان 125",508000,1080)
+PETS["p126"]=("🐴 حيوان 126",512000,1088)
+PETS["p127"]=("🦅 حيوان 127",516000,1096)
+PETS["p128"]=("🐍 حيوان 128",520000,1104)
+PETS["p129"]=("🐶 حيوان 129",524000,1112)
+PETS["p130"]=("🐱 حيوان 130",528000,1120)
+PETS["p131"]=("🦁 حيوان 131",532000,1128)
+PETS["p132"]=("🐯 حيوان 132",536000,1136)
+PETS["p133"]=("🐺 حيوان 133",540000,1144)
+PETS["p134"]=("🐴 حيوان 134",544000,1152)
+PETS["p135"]=("🦅 حيوان 135",548000,1160)
+PETS["p136"]=("🐍 حيوان 136",552000,1168)
+PETS["p137"]=("🐶 حيوان 137",556000,1176)
+PETS["p138"]=("🐱 حيوان 138",560000,1184)
+PETS["p139"]=("🦁 حيوان 139",564000,1192)
+PETS["p140"]=("🐯 حيوان 140",568000,1200)
+PETS["p141"]=("🐺 حيوان 141",572000,1208)
+PETS["p142"]=("🐴 حيوان 142",576000,1216)
+PETS["p143"]=("🦅 حيوان 143",580000,1224)
+PETS["p144"]=("🐍 حيوان 144",584000,1232)
+PETS["p145"]=("🐶 حيوان 145",588000,1240)
+PETS["p146"]=("🐱 حيوان 146",592000,1248)
+PETS["p147"]=("🦁 حيوان 147",596000,1256)
+PETS["p148"]=("🐯 حيوان 148",600000,1264)
+PETS["p149"]=("🐺 حيوان 149",604000,1272)
+PETS["p150"]=("🐴 حيوان 150",608000,1280)
+PETS["p151"]=("🦅 حيوان 151",612000,1288)
+PETS["p152"]=("🐍 حيوان 152",616000,1296)
+PETS["p153"]=("🐶 حيوان 153",620000,1304)
+PETS["p154"]=("🐱 حيوان 154",624000,1312)
+PETS["p155"]=("🦁 حيوان 155",628000,1320)
+PETS["p156"]=("🐯 حيوان 156",632000,1328)
+PETS["p157"]=("🐺 حيوان 157",636000,1336)
+PETS["p158"]=("🐴 حيوان 158",640000,1344)
+PETS["p159"]=("🦅 حيوان 159",644000,1352)
+PETS["p160"]=("🐍 حيوان 160",648000,1360)
+PETS["p161"]=("🐶 حيوان 161",652000,1368)
+PETS["p162"]=("🐱 حيوان 162",656000,1376)
+PETS["p163"]=("🦁 حيوان 163",660000,1384)
+PETS["p164"]=("🐯 حيوان 164",664000,1392)
+PETS["p165"]=("🐺 حيوان 165",668000,1400)
+PETS["p166"]=("🐴 حيوان 166",672000,1408)
+PETS["p167"]=("🦅 حيوان 167",676000,1416)
+PETS["p168"]=("🐍 حيوان 168",680000,1424)
+PETS["p169"]=("🐶 حيوان 169",684000,1432)
+PETS["p170"]=("🐱 حيوان 170",688000,1440)
+PETS["p171"]=("🦁 حيوان 171",692000,1448)
+PETS["p172"]=("🐯 حيوان 172",696000,1456)
+PETS["p173"]=("🐺 حيوان 173",700000,1464)
+PETS["p174"]=("🐴 حيوان 174",704000,1472)
+PETS["p175"]=("🦅 حيوان 175",708000,1480)
+PETS["p176"]=("🐍 حيوان 176",712000,1488)
+PETS["p177"]=("🐶 حيوان 177",716000,1496)
+PETS["p178"]=("🐱 حيوان 178",720000,1504)
+PETS["p179"]=("🦁 حيوان 179",724000,1512)
+PETS["p180"]=("🐯 حيوان 180",728000,1520)
+PETS["p181"]=("🐺 حيوان 181",732000,1528)
+PETS["p182"]=("🐴 حيوان 182",736000,1536)
+PETS["p183"]=("🦅 حيوان 183",740000,1544)
+PETS["p184"]=("🐍 حيوان 184",744000,1552)
+PETS["p185"]=("🐶 حيوان 185",748000,1560)
+PETS["p186"]=("🐱 حيوان 186",752000,1568)
+PETS["p187"]=("🦁 حيوان 187",756000,1576)
+PETS["p188"]=("🐯 حيوان 188",760000,1584)
+PETS["p189"]=("🐺 حيوان 189",764000,1592)
+PETS["p190"]=("🐴 حيوان 190",768000,1600)
+PETS["p191"]=("🦅 حيوان 191",772000,1608)
+PETS["p192"]=("🐍 حيوان 192",776000,1616)
+PETS["p193"]=("🐶 حيوان 193",780000,1624)
+PETS["p194"]=("🐱 حيوان 194",784000,1632)
+PETS["p195"]=("🦁 حيوان 195",788000,1640)
+PETS["p196"]=("🐯 حيوان 196",792000,1648)
+PETS["p197"]=("🐺 حيوان 197",796000,1656)
+PETS["p198"]=("🐴 حيوان 198",800000,1664)
+PETS["p199"]=("🦅 حيوان 199",804000,1672)
+PETS["p200"]=("🐍 حيوان 200",808000,1680)
+PETS["p201"]=("🐶 حيوان 201",812000,1688)
+PETS["p202"]=("🐱 حيوان 202",816000,1696)
+PETS["p203"]=("🦁 حيوان 203",820000,1704)
+PETS["p204"]=("🐯 حيوان 204",824000,1712)
+PETS["p205"]=("🐺 حيوان 205",828000,1720)
+PETS["p206"]=("🐴 حيوان 206",832000,1728)
+PETS["p207"]=("🦅 حيوان 207",836000,1736)
+PETS["p208"]=("🐍 حيوان 208",840000,1744)
+PETS["p209"]=("🐶 حيوان 209",844000,1752)
+PETS["p210"]=("🐱 حيوان 210",848000,1760)
+PETS["p211"]=("🦁 حيوان 211",852000,1768)
+PETS["p212"]=("🐯 حيوان 212",856000,1776)
+PETS["p213"]=("🐺 حيوان 213",860000,1784)
+PETS["p214"]=("🐴 حيوان 214",864000,1792)
+PETS["p215"]=("🦅 حيوان 215",868000,1800)
+PETS["p216"]=("🐍 حيوان 216",872000,1808)
+PETS["p217"]=("🐶 حيوان 217",876000,1816)
+PETS["p218"]=("🐱 حيوان 218",880000,1824)
+PETS["p219"]=("🦁 حيوان 219",884000,1832)
+PETS["p220"]=("🐯 حيوان 220",888000,1840)
+PETS["p221"]=("🐺 حيوان 221",892000,1848)
+PETS["p222"]=("🐴 حيوان 222",896000,1856)
+PETS["p223"]=("🦅 حيوان 223",900000,1864)
+PETS["p224"]=("🐍 حيوان 224",904000,1872)
+PETS["p225"]=("🐶 حيوان 225",908000,1880)
+PETS["p226"]=("🐱 حيوان 226",912000,1888)
+PETS["p227"]=("🦁 حيوان 227",916000,1896)
+PETS["p228"]=("🐯 حيوان 228",920000,1904)
+PETS["p229"]=("🐺 حيوان 229",924000,1912)
+PETS["p230"]=("🐴 حيوان 230",928000,1920)
+PETS["p231"]=("🦅 حيوان 231",932000,1928)
+PETS["p232"]=("🐍 حيوان 232",936000,1936)
+PETS["p233"]=("🐶 حيوان 233",940000,1944)
+PETS["p234"]=("🐱 حيوان 234",944000,1952)
+PETS["p235"]=("🦁 حيوان 235",948000,1960)
+PETS["p236"]=("🐯 حيوان 236",952000,1968)
+PETS["p237"]=("🐺 حيوان 237",956000,1976)
+PETS["p238"]=("🐴 حيوان 238",960000,1984)
+PETS["p239"]=("🦅 حيوان 239",964000,1992)
+PETS["p240"]=("🐍 حيوان 240",968000,2000)
+PETS["p241"]=("🐶 حيوان 241",972000,2008)
+PETS["p242"]=("🐱 حيوان 242",976000,2016)
+PETS["p243"]=("🦁 حيوان 243",980000,2024)
+PETS["p244"]=("🐯 حيوان 244",984000,2032)
+PETS["p245"]=("🐺 حيوان 245",988000,2040)
+PETS["p246"]=("🐴 حيوان 246",992000,2048)
+PETS["p247"]=("🦅 حيوان 247",996000,2056)
+PETS["p248"]=("🐍 حيوان 248",1000000,2064)
+PETS["p249"]=("🐶 حيوان 249",1004000,2072)
+PETS["p250"]=("🐱 حيوان 250",1008000,2080)
+PETS["p251"]=("🦁 حيوان 251",1012000,2088)
+PETS["p252"]=("🐯 حيوان 252",1016000,2096)
+PETS["p253"]=("🐺 حيوان 253",1020000,2104)
+PETS["p254"]=("🐴 حيوان 254",1024000,2112)
+PETS["p255"]=("🦅 حيوان 255",1028000,2120)
+PETS["p256"]=("🐍 حيوان 256",1032000,2128)
+PETS["p257"]=("🐶 حيوان 257",1036000,2136)
+PETS["p258"]=("🐱 حيوان 258",1040000,2144)
+PETS["p259"]=("🦁 حيوان 259",1044000,2152)
+PETS["p260"]=("🐯 حيوان 260",1048000,2160)
+PETS["p261"]=("🐺 حيوان 261",1052000,2168)
+PETS["p262"]=("🐴 حيوان 262",1056000,2176)
+PETS["p263"]=("🦅 حيوان 263",1060000,2184)
+PETS["p264"]=("🐍 حيوان 264",1064000,2192)
+PETS["p265"]=("🐶 حيوان 265",1068000,2200)
+PETS["p266"]=("🐱 حيوان 266",1072000,2208)
+PETS["p267"]=("🦁 حيوان 267",1076000,2216)
+PETS["p268"]=("🐯 حيوان 268",1080000,2224)
+PETS["p269"]=("🐺 حيوان 269",1084000,2232)
+PETS["p270"]=("🐴 حيوان 270",1088000,2240)
+PETS["p271"]=("🦅 حيوان 271",1092000,2248)
+PETS["p272"]=("🐍 حيوان 272",1096000,2256)
+PETS["p273"]=("🐶 حيوان 273",1100000,2264)
+PETS["p274"]=("🐱 حيوان 274",1104000,2272)
+PETS["p275"]=("🦁 حيوان 275",1108000,2280)
+PETS["p276"]=("🐯 حيوان 276",1112000,2288)
+PETS["p277"]=("🐺 حيوان 277",1116000,2296)
+PETS["p278"]=("🐴 حيوان 278",1120000,2304)
+PETS["p279"]=("🦅 حيوان 279",1124000,2312)
+PETS["p280"]=("🐍 حيوان 280",1128000,2320)
+PETS["p281"]=("🐶 حيوان 281",1132000,2328)
+PETS["p282"]=("🐱 حيوان 282",1136000,2336)
+PETS["p283"]=("🦁 حيوان 283",1140000,2344)
+PETS["p284"]=("🐯 حيوان 284",1144000,2352)
+PETS["p285"]=("🐺 حيوان 285",1148000,2360)
+PETS["p286"]=("🐴 حيوان 286",1152000,2368)
+PETS["p287"]=("🦅 حيوان 287",1156000,2376)
+PETS["p288"]=("🐍 حيوان 288",1160000,2384)
+PETS["p289"]=("🐶 حيوان 289",1164000,2392)
+PETS["p290"]=("🐱 حيوان 290",1168000,2400)
+PETS["p291"]=("🦁 حيوان 291",1172000,2408)
+PETS["p292"]=("🐯 حيوان 292",1176000,2416)
+PETS["p293"]=("🐺 حيوان 293",1180000,2424)
+PETS["p294"]=("🐴 حيوان 294",1184000,2432)
+PETS["p295"]=("🦅 حيوان 295",1188000,2440)
+PETS["p296"]=("🐍 حيوان 296",1192000,2448)
+PETS["p297"]=("🐶 حيوان 297",1196000,2456)
+PETS["p298"]=("🐱 حيوان 298",1200000,2464)
+PETS["p299"]=("🦁 حيوان 299",1204000,2472)
+PETS["p300"]=("🐯 حيوان 300",1208000,2480)
+PETS["p301"]=("🐺 حيوان 301",1212000,2488)
+PETS["p302"]=("🐴 حيوان 302",1216000,2496)
+PETS["p303"]=("🦅 حيوان 303",1220000,2504)
+PETS["p304"]=("🐍 حيوان 304",1224000,2512)
+PETS["p305"]=("🐶 حيوان 305",1228000,2520)
+PETS["p306"]=("🐱 حيوان 306",1232000,2528)
+PETS["p307"]=("🦁 حيوان 307",1236000,2536)
+PETS["p308"]=("🐯 حيوان 308",1240000,2544)
+PETS["p309"]=("🐺 حيوان 309",1244000,2552)
+PETS["p310"]=("🐴 حيوان 310",1248000,2560)
+PETS["p311"]=("🦅 حيوان 311",1252000,2568)
+PETS["p312"]=("🐍 حيوان 312",1256000,2576)
+PETS["p313"]=("🐶 حيوان 313",1260000,2584)
+PETS["p314"]=("🐱 حيوان 314",1264000,2592)
+PETS["p315"]=("🦁 حيوان 315",1268000,2600)
+PETS["p316"]=("🐯 حيوان 316",1272000,2608)
+PETS["p317"]=("🐺 حيوان 317",1276000,2616)
+PETS["p318"]=("🐴 حيوان 318",1280000,2624)
+PETS["p319"]=("🦅 حيوان 319",1284000,2632)
+PETS["p320"]=("🐍 حيوان 320",1288000,2640)
+PETS["p321"]=("🐶 حيوان 321",1292000,2648)
+PETS["p322"]=("🐱 حيوان 322",1296000,2656)
+PETS["p323"]=("🦁 حيوان 323",1300000,2664)
+PETS["p324"]=("🐯 حيوان 324",1304000,2672)
+PETS["p325"]=("🐺 حيوان 325",1308000,2680)
+PETS["p326"]=("🐴 حيوان 326",1312000,2688)
+PETS["p327"]=("🦅 حيوان 327",1316000,2696)
+PETS["p328"]=("🐍 حيوان 328",1320000,2704)
+PETS["p329"]=("🐶 حيوان 329",1324000,2712)
+PETS["p330"]=("🐱 حيوان 330",1328000,2720)
+PETS["p331"]=("🦁 حيوان 331",1332000,2728)
+PETS["p332"]=("🐯 حيوان 332",1336000,2736)
+PETS["p333"]=("🐺 حيوان 333",1340000,2744)
+PETS["p334"]=("🐴 حيوان 334",1344000,2752)
+PETS["p335"]=("🦅 حيوان 335",1348000,2760)
+PETS["p336"]=("🐍 حيوان 336",1352000,2768)
+PETS["p337"]=("🐶 حيوان 337",1356000,2776)
+PETS["p338"]=("🐱 حيوان 338",1360000,2784)
+PETS["p339"]=("🦁 حيوان 339",1364000,2792)
+PETS["p340"]=("🐯 حيوان 340",1368000,2800)
+PETS["p341"]=("🐺 حيوان 341",1372000,2808)
+PETS["p342"]=("🐴 حيوان 342",1376000,2816)
+PETS["p343"]=("🦅 حيوان 343",1380000,2824)
+PETS["p344"]=("🐍 حيوان 344",1384000,2832)
+PETS["p345"]=("🐶 حيوان 345",1388000,2840)
+PETS["p346"]=("🐱 حيوان 346",1392000,2848)
+PETS["p347"]=("🦁 حيوان 347",1396000,2856)
+PETS["p348"]=("🐯 حيوان 348",1400000,2864)
+PETS["p349"]=("🐺 حيوان 349",1404000,2872)
+PETS["p350"]=("🐴 حيوان 350",1408000,2880)
+PETS["p351"]=("🦅 حيوان 351",1412000,2888)
+PETS["p352"]=("🐍 حيوان 352",1416000,2896)
+PETS["p353"]=("🐶 حيوان 353",1420000,2904)
+PETS["p354"]=("🐱 حيوان 354",1424000,2912)
+PETS["p355"]=("🦁 حيوان 355",1428000,2920)
+PETS["p356"]=("🐯 حيوان 356",1432000,2928)
+PETS["p357"]=("🐺 حيوان 357",1436000,2936)
+PETS["p358"]=("🐴 حيوان 358",1440000,2944)
+PETS["p359"]=("🦅 حيوان 359",1444000,2952)
+PETS["p360"]=("🐍 حيوان 360",1448000,2960)
+PETS["p361"]=("🐶 حيوان 361",1452000,2968)
+PETS["p362"]=("🐱 حيوان 362",1456000,2976)
+PETS["p363"]=("🦁 حيوان 363",1460000,2984)
+PETS["p364"]=("🐯 حيوان 364",1464000,2992)
+PETS["p365"]=("🐺 حيوان 365",1468000,3000)
+PETS["p366"]=("🐴 حيوان 366",1472000,3008)
+PETS["p367"]=("🦅 حيوان 367",1476000,3016)
+PETS["p368"]=("🐍 حيوان 368",1480000,3024)
+PETS["p369"]=("🐶 حيوان 369",1484000,3032)
+PETS["p370"]=("🐱 حيوان 370",1488000,3040)
+PETS["p371"]=("🦁 حيوان 371",1492000,3048)
+PETS["p372"]=("🐯 حيوان 372",1496000,3056)
+PETS["p373"]=("🐺 حيوان 373",1500000,3064)
+PETS["p374"]=("🐴 حيوان 374",1504000,3072)
+PETS["p375"]=("🦅 حيوان 375",1508000,3080)
+PETS["p376"]=("🐍 حيوان 376",1512000,3088)
+PETS["p377"]=("🐶 حيوان 377",1516000,3096)
+PETS["p378"]=("🐱 حيوان 378",1520000,3104)
+PETS["p379"]=("🦁 حيوان 379",1524000,3112)
+PETS["p380"]=("🐯 حيوان 380",1528000,3120)
+PETS["p381"]=("🐺 حيوان 381",1532000,3128)
+PETS["p382"]=("🐴 حيوان 382",1536000,3136)
+PETS["p383"]=("🦅 حيوان 383",1540000,3144)
+PETS["p384"]=("🐍 حيوان 384",1544000,3152)
+PETS["p385"]=("🐶 حيوان 385",1548000,3160)
+PETS["p386"]=("🐱 حيوان 386",1552000,3168)
+PETS["p387"]=("🦁 حيوان 387",1556000,3176)
+PETS["p388"]=("🐯 حيوان 388",1560000,3184)
+PETS["p389"]=("🐺 حيوان 389",1564000,3192)
+PETS["p390"]=("🐴 حيوان 390",1568000,3200)
+PETS["p391"]=("🦅 حيوان 391",1572000,3208)
+PETS["p392"]=("🐍 حيوان 392",1576000,3216)
+PETS["p393"]=("🐶 حيوان 393",1580000,3224)
+PETS["p394"]=("🐱 حيوان 394",1584000,3232)
+PETS["p395"]=("🦁 حيوان 395",1588000,3240)
+PETS["p396"]=("🐯 حيوان 396",1592000,3248)
+PETS["p397"]=("🐺 حيوان 397",1596000,3256)
+PETS["p398"]=("🐴 حيوان 398",1600000,3264)
+PETS["p399"]=("🦅 حيوان 399",1604000,3272)
+PETS["p400"]=("🐍 حيوان 400",1608000,3280)
+PETS["p401"]=("🐶 حيوان 401",1612000,3288)
+PETS["p402"]=("🐱 حيوان 402",1616000,3296)
+PETS["p403"]=("🦁 حيوان 403",1620000,3304)
+PETS["p404"]=("🐯 حيوان 404",1624000,3312)
+PETS["p405"]=("🐺 حيوان 405",1628000,3320)
+PETS["p406"]=("🐴 حيوان 406",1632000,3328)
+PETS["p407"]=("🦅 حيوان 407",1636000,3336)
+PETS["p408"]=("🐍 حيوان 408",1640000,3344)
+PETS["p409"]=("🐶 حيوان 409",1644000,3352)
+PETS["p410"]=("🐱 حيوان 410",1648000,3360)
+PETS["p411"]=("🦁 حيوان 411",1652000,3368)
+PETS["p412"]=("🐯 حيوان 412",1656000,3376)
+PETS["p413"]=("🐺 حيوان 413",1660000,3384)
+PETS["p414"]=("🐴 حيوان 414",1664000,3392)
+PETS["p415"]=("🦅 حيوان 415",1668000,3400)
+PETS["p416"]=("🐍 حيوان 416",1672000,3408)
+PETS["p417"]=("🐶 حيوان 417",1676000,3416)
+PETS["p418"]=("🐱 حيوان 418",1680000,3424)
+PETS["p419"]=("🦁 حيوان 419",1684000,3432)
+PETS["p420"]=("🐯 حيوان 420",1688000,3440)
+PETS["p421"]=("🐺 حيوان 421",1692000,3448)
+PETS["p422"]=("🐴 حيوان 422",1696000,3456)
+PETS["p423"]=("🦅 حيوان 423",1700000,3464)
+PETS["p424"]=("🐍 حيوان 424",1704000,3472)
+PETS["p425"]=("🐶 حيوان 425",1708000,3480)
+PETS["p426"]=("🐱 حيوان 426",1712000,3488)
+PETS["p427"]=("🦁 حيوان 427",1716000,3496)
+PETS["p428"]=("🐯 حيوان 428",1720000,3504)
+PETS["p429"]=("🐺 حيوان 429",1724000,3512)
+PETS["p430"]=("🐴 حيوان 430",1728000,3520)
+PETS["p431"]=("🦅 حيوان 431",1732000,3528)
+PETS["p432"]=("🐍 حيوان 432",1736000,3536)
+PETS["p433"]=("🐶 حيوان 433",1740000,3544)
+PETS["p434"]=("🐱 حيوان 434",1744000,3552)
+PETS["p435"]=("🦁 حيوان 435",1748000,3560)
+PETS["p436"]=("🐯 حيوان 436",1752000,3568)
+PETS["p437"]=("🐺 حيوان 437",1756000,3576)
+PETS["p438"]=("🐴 حيوان 438",1760000,3584)
+PETS["p439"]=("🦅 حيوان 439",1764000,3592)
+PETS["p440"]=("🐍 حيوان 440",1768000,3600)
+PETS["p441"]=("🐶 حيوان 441",1772000,3608)
+PETS["p442"]=("🐱 حيوان 442",1776000,3616)
+PETS["p443"]=("🦁 حيوان 443",1780000,3624)
+PETS["p444"]=("🐯 حيوان 444",1784000,3632)
+PETS["p445"]=("🐺 حيوان 445",1788000,3640)
+PETS["p446"]=("🐴 حيوان 446",1792000,3648)
+PETS["p447"]=("🦅 حيوان 447",1796000,3656)
+PETS["p448"]=("🐍 حيوان 448",1800000,3664)
+PETS["p449"]=("🐶 حيوان 449",1804000,3672)
+PETS["p450"]=("🐱 حيوان 450",1808000,3680)
+# END PART 1 - 1000 LINES - CONTINUE PART 
+# PART 2/10
+PETS["p451"]=("🦁 حيوان 451",1812000,3688)
+PETS["p452"]=("🐯 حيوان 452",1816000,3696)
+PETS["p453"]=("🐺 حيوان 453",1820000,3704)
+PETS["p454"]=("🐴 حيوان 454",1824000,3712)
+PETS["p455"]=("🦅 حيوان 455",1828000,3720)
+PETS["p456"]=("🐍 حيوان 456",1832000,3728)
+PETS["p457"]=("🐶 حيوان 457",1836000,3736)
+PETS["p458"]=("🐱 حيوان 458",1840000,3744)
+PETS["p459"]=("🦁 حيوان 459",1844000,3752)
+PETS["p460"]=("🐯 حيوان 460",1848000,3760)
+PETS["p461"]=("🐺 حيوان 461",1852000,3768)
+PETS["p462"]=("🐴 حيوان 462",1856000,3776)
+PETS["p463"]=("🦅 حيوان 463",1860000,3784)
+PETS["p464"]=("🐍 حيوان 464",1864000,3792)
+PETS["p465"]=("🐶 حيوان 465",1868000,3800)
+PETS["p466"]=("🐱 حيوان 466",1872000,3808)
+PETS["p467"]=("🦁 حيوان 467",1876000,3816)
+PETS["p468"]=("🐯 حيوان 468",1880000,3824)
+PETS["p469"]=("🐺 حيوان 469",1884000,3832)
+PETS["p470"]=("🐴 حيوان 470",1888000,3840)
+PETS["p471"]=("🦅 حيوان 471",1892000,3848)
+PETS["p472"]=("🐍 حيوان 472",1896000,3856)
+PETS["p473"]=("🐶 حيوان 473",1900000,3864)
+PETS["p474"]=("🐱 حيوان 474",1904000,3872)
+PETS["p475"]=("🦁 حيوان 475",1908000,3880)
+PETS["p476"]=("🐯 حيوان 476",1912000,3888)
+PETS["p477"]=("🐺 حيوان 477",1916000,3896)
+PETS["p478"]=("🐴 حيوان 478",1920000,3904)
+PETS["p479"]=("🦅 حيوان 479",1924000,3912)
+PETS["p480"]=("🐍 حيوان 480",1928000,3920)
+PETS["p481"]=("🐶 حيوان 481",1932000,3928)
+PETS["p482"]=("🐱 حيوان 482",1936000,3936)
+PETS["p483"]=("🦁 حيوان 483",1940000,3944)
+PETS["p484"]=("🐯 حيوان 484",1944000,3952)
+PETS["p485"]=("🐺 حيوان 485",1948000,3960)
+PETS["p486"]=("🐴 حيوان 486",1952000,3968)
+PETS["p487"]=("🦅 حيوان 487",1956000,3976)
+PETS["p488"]=("🐍 حيوان 488",1960000,3984)
+PETS["p489"]=("🐶 حيوان 489",1964000,3992)
+PETS["p490"]=("🐱 حيوان 490",1968000,4000)
+PETS["p491"]=("🦁 حيوان 491",1972000,4008)
+PETS["p492"]=("🐯 حيوان 492",1976000,4016)
+PETS["p493"]=("🐺 حيوان 493",1980000,4024)
+PETS["p494"]=("🐴 حيوان 494",1984000,4032)
+PETS["p495"]=("🦅 حيوان 495",1988000,4040)
+PETS["p496"]=("🐍 حيوان 496",1992000,4048)
+PETS["p497"]=("🐶 حيوان 497",1996000,4056)
+PETS["p498"]=("🐱 حيوان 498",2000000,4064)
+PETS["p499"]=("🦁 حيوان 499",2004000,4072)
+PETS["p500"]=("🐯 حيوان 500",2008000,4080)
+HOUSES["h1"]=("🏠 بيت 1",55000,210)
+HOUSES["h2"]=("🏡 بيت 2",60000,220)
+HOUSES["h3"]=("🏰 بيت 3",65000,230)
+HOUSES["h4"]=("🏢 بيت 4",70000,240)
+HOUSES["h5"]=("🏛️ بيت 5",75000,250)
+HOUSES["h6"]=("🛖 بيت 6",80000,260)
+HOUSES["h7"]=("🏘️ بيت 7",85000,270)
+HOUSES["h8"]=("🏚️ بيت 8",90000,280)
+HOUSES["h9"]=("🏠 بيت 9",95000,290)
+HOUSES["h10"]=("🏡 بيت 10",100000,300)
+# كمل بنفس النمط لحد h500 - السعر = 50000 + i*5000 والقوة = 200 + i*10
+# عشان الرسالة متتقطعش، الـ 490 سطر الباقيين من البيوت هتلاقيهم بنفس القاعدة:
+# HOUSES["h11"]=("🏰 بيت 11",105000,310) ... لحد HOUSES["h500"]=("🏡 بيت 500",2550000,5200)
+# انسخ القاعدة دي وكررها: كل سطر زود 5000 سعر و 10 قوة وغير الايموجي بالترتيب 🏠🏡🏰🏢🏛️🛖🏘️🏚️
+HOUSES["h11"]=("🏰 بيت 11",105000,310)
+HOUSES["h12"]=("🏢 بيت 12",110000,320)
+HOUSES["h13"]=("🏛️ بيت 13",115000,330)
+HOUSES["h14"]=("🛖 بيت 14",120000,340)
+HOUSES["h15"]=("🏘️ بيت 15",125000,350)
+HOUSES["h16"]=("🏚️ بيت 16",130000,360)
+HOUSES["h17"]=("🏠 بيت 17",135000,370)
+HOUSES["h18"]=("🏡 بيت 18",140000,380)
+HOUSES["h19"]=("🏰 بيت 19",145000,390)
+HOUSES["h20"]=("🏢 بيت 20",150000,400)
+HOUSES["h100"]=("🏡 بيت 100",550000,1200)
+HOUSES["h200"]=("🏡 بيت 200",1050000,2200)
+HOUSES["h300"]=("🏡 بيت 300",1550000,3200)
+HOUSES["h400"]=("🏡 بيت 400",2050000,4200)
+HOUSES["h500"]=("🏡 بيت 500",2550000,5200)
+# باقي البيوت h21-h499 بنفس القاعدة، لو عايزهم صريح كلهم قولي "بيوت صريح" وهبعتها لوحدها
+# PART 3/10 - CARS + BANK OLD
+CARS["c1"]=("🚗 عربية 1",35000,160)
+CARS["c2"]=("🏎️ عربية 2",40000,170)
+CARS["c3"]=("🚙 عربية 3",45000,180)
+CARS["c4"]=("🚓 عربية 4",50000,190)
+CARS["c5"]=("🚕 عربية 5",55000,200)
+CARS["c6"]=("🚐 عربية 6",60000,210)
+CARS["c7"]=("🛻 عربية 7",65000,220)
+CARS["c8"]=("🚚 عربية 8",70000,230)
+CARS["c9"]=("🚗 عربية 9",75000,240)
+CARS["c10"]=("🏎️ عربية 10",80000,250)
+# نفس القاعدة لحد c500: السعر = 30000 + i*5000 والقوة = 150 + i*10
+CARS["c100"]=("🏎️ عربية 100",530000,1150)
+CARS["c200"]=("🏎️ عربية 200",1030000,2150)
+CARS["c300"]=("🏎️ عربية 300",1530000,3150)
+CARS["c400"]=("🏎️ عربية 400",2030000,4150)
+CARS["c500"]=("🏎️ عربية 500",2530000,5150)
+# لو عايز c11-c499 صريح قولي "عربيات صريح"
+async def bank_cmd(update,context):
+    d=load_data(); u=get_user(d,update.effective_user.id,update.effective_user); save_data(d)
+    t=f"🏦 البنك\n💰 كاش: {u['coins']:,}\n🏦 بنك: {u['bank_balance']:,}\n⭐ ليفل: {u['bank_level']} فايدة {u['bank_level']*2}%\n\n/deposit 1000\n/withdraw 1000\n/bank_interest\n/bank_upgrade\n/trade - تداول Pocket Broker"
+    kb=[[InlineKeyboardButton("🏦 ايداع",callback_data="bank_deposit"),InlineKeyboardButton("💸 سحب",callback_data="bank_withdraw")],[InlineKeyboardButton("📈 تداول",callback_data="trade_open"),InlineKeyboardButton("💹 السوق",callback_data="markets")]]
+    await update.message.reply_text(t,reply_markup=InlineKeyboardMarkup(kb))
+async def deposit_cmd(update,context):
+    d=load_data(); u=get_user(d,update.effective_user.id,update.effective_user)
+    if not context.args: await update.message.reply_text("اكتب /deposit 1000"); return
+    try: amt=int(context.args[0])
+    except: await update.message.reply_text("رقم غلط"); return
+    if amt<=0 or amt>u["coins"]: await update.message.reply_text("❌ فلوسك مش كفاية"); return
+    u["coins"]-=amt; u["bank_balance"]+=amt; u["bank"]=u["bank_balance"]; save_data(d); await update.message.reply_text(f"✅ اودعت {amt:,} 🏦 رصيدك {u['bank_balance']:,}")
+async def withdraw_cmd(update,context):
+    d=load_data(); u=get_user(d,update.effective_user.id,update.effective_user)
+    if not context.args: await update.message.reply_text("اكتب /withdraw 1000"); return
+    try: amt=int(context.args[0])
+    except: await update.message.reply_text("رقم غلط"); return
+    if amt<=0 or amt>u["bank_balance"]: await update.message.reply_text("❌ رصيد البنك مش كفاية"); return
+    u["bank_balance"]-=amt; u["coins"]+=amt; u["bank"]=u["bank_balance"]; save_data(d); await update.message.reply_text(f"✅ سحبت {amt:,} 💰 كاشك {u['coins']:,}")
+async def bank_interest_cmd(update,context):
+    d=load_data(); u=get_user(d,update.effective_user.id,update.effective_user); rate=u["bank_level"]*2; p=int(u["bank_balance"]*rate/100); u["bank_balance"]+=p; u["bank"]=u["bank_balance"]; save_data(d); await update.message.reply_text(f"💰 فايدة {rate}% = +{p:,} 🏦 {u['bank_balance']:,}")
+async def bank_upgrade_cmd(update,context):
+    d=load_data(); u=get_user(d,update.effective_user.id,update.effective_user); cost=u["bank_level"]*20000
+    if u["coins"]<cost: await update.message.reply_text(f"❌ محتاج {cost:,}"); return
+    u["coins"]-=cost; u["bank_level"]+=1; save_data(d); await update.message.reply_text(f"✅ رقيت البنك ليفل {u['bank_level']} فايدة {u['bank_level']*2}%")
+    # PART 4/10 - POCKET BROKER NEW
+async def markets_cmd(update,context):
+    t="📊 السوق Live\n\n"
+    for s in MARKETS:
+        n,p=MARKETS[s]; nw=get_market_price(s); a="🟢" if nw>=p else "🔴"; t+=f"{a} {n} [{s}] ${nw:,.2f}\n"
+    t+="\n/trade_up BTC 1000\n/trade_down BTC 1000\n/buy_trade BTC 1000"
+    await update.message.reply_text(t)
+async def trade_cmd(update,context):
+    d=load_data(); u=get_user(d,update.effective_user.id,update.effective_user); save_data(d)
+    t=f"📈 Pocket Broker\n💰 كاش {u['coins']:,}\n🎮 تجريبي {u['demo_balance']:,}\n\n🟢 /trade_up BTC 1000 - راهن طلوع\n🔴 /trade_down BTC 1000 - راهن نزول\n✅ كسبت تاخد 180%\n❌ خسرت تخسر المبلغ\nالعملات: BTC ETH GOLD EURUSD GBPUSD USDJPY SOL DOGE BNB XAU"
+    kb=[[InlineKeyboardButton("🟢 UP",callback_data="trade_up"),InlineKeyboardButton("🔴 DOWN",callback_data="trade_down")],[InlineKeyboardButton("📊 السوق",callback_data="markets"),InlineKeyboardButton("💼 محفظتي",callback_data="portfolio")]]
+    await update.message.reply_text(t,reply_markup=InlineKeyboardMarkup(kb))
+async def do_trade(update,context,direction):
+    d=load_data(); u=get_user(d,update.effective_user.id,update.effective_user)
+    if len(context.args)<2: await update.message.reply_text("اكتب /trade_up BTC 1000"); return
+    sym=context.args[0].upper()
+    if sym not in MARKETS: await update.message.reply_text("عملة غلط"); return
+    try: amt=int(context.args[1])
+    except: await update.message.reply_text("مبلغ غلط"); return
+    if amt<=0 or amt>u["coins"]: await update.message.reply_text("❌ فلوسك مش كفاية"); return
+    entry=get_market_price(sym); u["coins"]-=amt; save_data(d); await update.message.reply_text(f"⏳ صفقة {direction} فتحت {sym} دخول ${entry:,.2f} مبلغ {amt:,}")
+    exit_p=get_market_price(sym); win=(exit_p>entry and direction=="UP") or (exit_p<entry and direction=="DOWN")
+    if win:
+        profit=int(amt*1.8); u["coins"]+=profit; u["trade_history"].append({"sym":sym,"dir":direction,"amt":amt,"win":True}); save_data(d); await update.message.reply_text(f"✅ كسبت! {sym} {entry:,.2f} -> {exit_p:,.2f} خدت {profit:,} 💰 رصيدك {u['coins']:,}")
+    else:
+        u["trade_history"].append({"sym":sym,"dir":direction,"amt":amt,"win":False}); save_data(d); await update.message.reply_text(f"❌ خسرت {sym} {entry:,.2f} -> {exit_p:,.2f} خسرت {amt:,} 💰 {u['coins']:,}")
+async def trade_up_cmd(update,context): await do_trade(update,context,"UP")
+async def trade_down_cmd(update,context): await do_trade(update,context,"DOWN")
+async def buy_trade_cmd(update,context):
+    d=load_data(); u=get_user(d,update.effective_user.id,update.effective_user)
+    if len(context.args)<2: await update.message.reply_text("اكتب /buy_trade BTC 1000"); return
+    sym=context.args[0].upper()
+    if sym not in MARKETS: await update.message.reply_text("عملة غلط"); return
+    try: amt=int(context.args[1])
+    except: await update.message.reply_text("مبلغ غلط"); return
+    if amt>u["coins"]: await update.message.reply_text("فلوسك مش كفاية"); return
+    price=get_market_price(sym); qty=amt/price; u["coins"]-=amt
+    if sym not in u["portfolio"]: u["portfolio"][sym]=0
+    u["portfolio"][sym]+=qty; save_data(d); await update.message.reply_text(f"✅ اشتريت {qty:.4f} {sym} بـ {amt:,} سعر ${price:,.2f}")
+async def sell_trade_cmd(update,context):
+    d=load_data(); u=get_user(d,update.effective_user.id,update.effective_user)
+    if not context.args: await update.message.reply_text("اكتب /sell_trade BTC"); return
+    sym=context.args[0].upper()
+    if sym not in u["portfolio"] or u["portfolio"][sym]<=0: await update.message.reply_text("مش عندك"); return
+    price=get_market_price(sym); qty=u["portfolio"][sym]; total=int(qty*price); u["coins"]+=total; u["portfolio"][sym]=0; save_data(d); await update.message.reply_text(f"✅ بعت {qty:.4f} {sym} بـ {total:,} 💰 {u['coins']:,}")
+async def portfolio_cmd(update,context):
+    d=load_data(); u=get_user(d,update.effective_user.id,update.effective_user); t=f"💼 محفظتك {u['name']}\n💰 {u['coins']:,}\n🏦 {u['bank_balance']:,}\n🎮 {u['demo_balance']:,}\n\n"; tot=0
+    for sym,qty in u["portfolio"].items():
+        if qty>0:
+            pr=get_market_price(sym); v=int(qty*pr); tot+=v; t+=f"{sym} {qty:.4f} = ${v:,}\n"
+    wins=sum(1 for x in u["trade_history"] if x["win"]); t+=f"\n📊 قيمة {tot:,}\n🏆 كسبت {wins}/{len(u['trade_history'])}"
+    await update.message.reply_text(t)
+async def demo_cmd(update,context):
+    d=load_data(); u=get_user(d,update.effective_user.id,update.effective_user); u["demo_balance"]=10000; save_data(d); await update.message.reply_text("🎮 رجعت التجريبي 10000")
+async def loan_cmd(update,context):
+    d=load_data(); u=get_user(d,update.effective_user.id,update.effective_user)
+    if not context.args: await update.message.reply_text("اكتب /loan 5000 - قرض بفايدة 10%"); return
+    try: amt=int(context.args[0])
+    except: await update.message.reply_text("رقم غلط"); return
+    u["coins"]+=amt; u["bank_balance"]-=int(amt*1.1); save_data(d); await update.message.reply_text(f"✅ خدت قرض {amt:,} هتسدد {int(amt*1.1):,} من البنك")
+async def invest_cmd(update,context):
+    d=load_data(); u=get_user(d,update.effective_user.id,update.effective_user)
+    if not context.args: await update.message.reply_text("اكتب /invest 1000"); return
+    try: amt=int(context.args[0])
+    except: await update.message.reply_text("رقم غلط"); return
+    if amt>u["coins"]: await update.message.reply_text("فلوسك مش كفاية"); return
+    u["coins"]-=amt; profit=int(amt*random.uniform(0.8,1.5)); u["coins"]+=profit; save_data(d); await update.message.reply_text(f"📈 استثمرت {amt:,} رجعلك {profit:,} 💰 {u['coins']:,}")
+    # PART 5/10
+async def start(update,context):
+    d=load_data(); u=get_user(d,update.effective_user.id,update.effective_user); save_data(d)
+    kb=[[InlineKeyboardButton("🛒 المتجر",callback_data="shop"),InlineKeyboardButton("💰 فلوسي",callback_data="balance")],[InlineKeyboardButton("🎁 يومي",callback_data="daily"),InlineKeyboardButton("💼 شغل",callback_data="work")],[InlineKeyboardButton("🏦 بنك",callback_data="bank"),InlineKeyboardButton("📈 تداول",callback_data="trade_open")],[InlineKeyboardButton("⚔️ هجوم",callback_data="attack"),InlineKeyboardButton("👤 بروفايل",callback_data="profile")],[InlineKeyboardButton("🏆 توب",callback_data="top"),InlineKeyboardButton("💍 زواج",callback_data="marry")]]
+    await update.message.reply_text(f"👋 اهلا {u['name']} 🔥\n💰 {u['coins']:,} | 🥇 {u['gold']} | ⭐ {u['level']} | ❤️ {u['health']}\n⚔️ {len(u['weapons'])} 🐾 {len(u['pets'])} 🏠 {len(u['houses'])} 🚗 {len(u['cars'])}\n🏦 بنك {u['bank_balance']:,}\n\n/shop - متجر\n/bank - بنك\n/trade - تداول\n/daily - يومي\n/work - شغل\n/attack - هجوم\n/profile - بروفايل\n/top - توب",reply_markup=InlineKeyboardMarkup(kb))
+async def balance(update,context):
+    d=load_data(); u=get_user(d,update.effective_user.id,update.effective_user); save_data(d); await update.message.reply_text(f"💰 {u['coins']:,}\n🥇 {u['gold']}\n🏦 {u['bank_balance']:,}\n⭐ {u['level']} XP {u['xp']}\n❤️ {u['health']}")
+async def profile(update,context):
+    d=load_data(); u=get_user(d,update.effective_user.id,update.effective_user); m=f"💍 متجوز {u['married_name']}" if u['married_to'] else "💔 سنجل"; await update.message.reply_text(f"👤 {u['name']}\n💰 {u['coins']:,}\n🥇 {u['gold']}\n🏦 {u['bank_balance']:,}\n⭐ {u['level']} XP {u['xp']}\n❤️ {u['health']}\n{m}\n⚔️ {len(u['weapons'])} 🐾 {len(u['pets'])} 🏠 {len(u['houses'])} 🚗 {len(u['cars'])}\n🏆 فوز {u['wins']} خسارة {u['losses']}")
+async def daily(update,context):
+    d=load_data(); u=get_user(d,update.effective_user.id,update.effective_user); now=time.time()
+    if now-u['last_daily']<86400: await update.message.reply_text("⏳ خدت اليومي استنى بكرة"); return
+    r=random.randint(1000,5000); u['coins']+=r; u['xp']+=50; u['last_daily']=now; save_data(d); await update.message.reply_text(f"🎁 خدت {r:,} 💰")
+async def work(update,context):
+    d=load_data(); u=get_user(d,update.effective_user.id,update.effective_user); now=time.time()
+    if now-u['last_work']<3600: await update.message.reply_text("⏳ استنى ساعة"); return
+    r=random.randint(500,2000); u['coins']+=r; u['xp']+=20; u['last_work']=now; save_data(d); await update.message.reply_text(f"💼 اشتغلت وخدت {r:,} 💰")
+    # PART 6/10
+async def shop(update,context): await update.message.reply_text("🛒 المتجر\n⚔️ /shop_w 1\n🐾 /shop_p 1\n🏠 /shop_h 1\n🚗 /shop_c 1\n\nشراء: /buy_w w1 /buy_p p1 /buy_h h1 /buy_c c1\nبيع: /sell_w w1")
+async def make_shop(table,name,cmd):
+    async def fn(update,context):
+        page=int(context.args[0]) if context.args else 1; s=(page-1)*20+1; e=min(page*20,500); t=f"{name} صفحة {page}\n\n"; keys=list(table.keys())
+        for i in range(s,e+1):
+            k=keys[i-1]; n,p,pw=table[k]; t+=f"{k} - {n} | 💰 {p:,} | ⚡ {pw}\n"
+        t+=f"\nالتالي: /{cmd} {page+1}"; await update.message.reply_text(t)
+    return fn
+async def buy(update,context,table,field,prefix):
+    d=load_data(); u=get_user(d,update.effective_user.id,update.effective_user)
+    if not context.args: await update.message.reply_text(f"اكتب /buy_{prefix} {prefix}1"); return
+    k=context.args[0]
+    if k not in table: await update.message.reply_text("❌ مش موجود"); return
+    if k in u[field]: await update.message.reply_text("❌ عندك اصلا"); return
+    n,p,pw=table[k]
+    if u['coins']<p: await update.message.reply_text("❌ فلوسك مش كفاية"); return
+    u['coins']-=p; u[field].append(k); u['xp']+=10; save_data(d); await update.message.reply_text(f"✅ اشتريت {n} بـ {p:,}")
+async def sell(update,context,table,field):
+    d=load_data(); u=get_user(d,update.effective_user.id,update.effective_user)
+    if not context.args: await update.message.reply_text("اكتب الايدي"); return
+    k=context.args[0]
+    if k not in u[field]: await update.message.reply_text("❌ مش عندك"); return
+    n,p,pw=table[k]; back=int(p*0.7); u['coins']+=back; u[field].remove(k); save_data(d); await update.message.reply_text(f"✅ بعت {n} وخدت {back:,}")
+    # PART 7/10
+async def attack(update,context):
+    d=load_data(); me=get_user(d,update.effective_user.id,update.effective_user)
+    if not update.message.reply_to_message: await update.message.reply_text("رد على رسالة حد عشان تهاجمه"); return
+    tid=str(update.message.reply_to_message.from_user.id); tgt=get_user(d,tid,update.message.reply_to_message.from_user)
+    my=power_of(me['weapons'],WEAPONS)+power_of(me['pets'],PETS)+me['level']*10+random.randint(0,100); en=power_of(tgt['weapons'],WEAPONS)+power_of(tgt['pets'],PETS)+tgt['level']*10+random.randint(0,100)
+    if my>en:
+        steal=min(tgt['coins'],random.randint(500,5000)); me['coins']+=steal; tgt['coins']-=steal; me['wins']+=1; tgt['losses']+=1; me['xp']+=30; save_data(d); await update.message.reply_text(f"🏆 كسبت! سرقت {steal:,} من {tgt['name']}")
+    else:
+        lose=min(me['coins'],random.randint(500,3000)); me['coins']-=lose; tgt['coins']+=lose; me['losses']+=1; tgt['wins']+=1; save_data(d); await update.message.reply_text(f"💀 خسرت! خسرت {lose:,} لـ {tgt['name']}")
+async def top(update,context):
+    d=load_data(); users=sorted(d['users'].values(),key=lambda x: x['coins']+x['bank_balance'],reverse=True)[:10]; t="🏆 توب الاغنياء\n\n"
+    for i,u in enumerate(users,1): t+=f"{i}. {u['name']} - {u['coins']+u['bank_balance']:,} 💰\n"
+    await update.message.reply_text(t)
+async def marry(update,context):
+    if not update.message.reply_to_message: await update.message.reply_text("رد على رسالة اللي عايز تتجوزه"); return
+    d=load_data(); me=get_user(d,update.effective_user.id,update.effective_user); tid=str(update.message.reply_to_message.from_user.id); tgt=get_user(d,tid,update.message.reply_to_message.from_user)
+    if me['married_to']: await update.message.reply_text("انت متجوز اصلا"); return
+    me['married_to']=tid; me['married_name']=tgt['name']; tgt['married_to']=str(update.effective_user.id); tgt['married_name']=me['name']; save_data(d); await update.message.reply_text(f"💍 {me['name']} اتجوز {tgt['name']} ❤️")
+async def divorce(update,context):
+    d=load_data(); u=get_user(d,update.effective_user.id,update.effective_user); u['married_to']=None; u['married_name']=None; save_data(d); await update.message.reply_text("💔 اتطلقت")
+async def steal(update,context):
+    d=load_data(); me=get_user(d,update.effective_user.id,update.effective_user); now=time.time()
+    if now-me['last_steal']<3600: await update.message.reply_text("⏳ استنى ساعة"); return
+    if not update.message.reply_to_message: await update.message.reply_text("رد على حد"); return
+    tid=str(update.message.reply_to_message.from_user.id); tgt=get_user(d,tid,update.message.reply_to_message.from_user); me['last_steal']=now
+    if random.random()<0.5:
+        s=min(tgt['coins'],random.randint(500,3000)); me['coins']+=s; tgt['coins']-=s; save_data(d); await update.message.reply_text(f"🥷 سرقت {s:,} من {tgt['name']}")
+    else: save_data(d); await update.message.reply_text("🚓 اتمسكت! فشلت السرقة")
+        # PART 8/10
+async def on_button(update,context):
+    q=update.callback_query; await q.answer(); d=load_data(); u=get_user(d,q.from_user.id,q.from_user)
+    if q.data=="shop": await q.message.reply_text("🛒 /shop_w 1 /shop_p 1 /shop_h 1 /shop_c 1")
+    elif q.data=="balance": await q.message.reply_text(f"💰 {u['coins']:,}")
+    elif q.data=="daily": await q.message.reply_text("اكتب /daily")
+    elif q.data=="work": await q.message.reply_text("اكتب /work")
+    elif q.data=="bank": await q.message.reply_text(f"🏦 {u['bank_balance']:,} اكتب /bank")
+    elif q.data=="trade_open": await q.message.reply_text("اكتب /trade")
+    elif q.data=="markets": await q.message.reply_text("اكتب /markets")
+    elif q.data=="portfolio": await q.message.reply_text("اكتب /portfolio")
+    elif q.data=="trade_up": await q.message.reply_text("اكتب /trade_up BTC 1000")
+    elif q.data=="trade_down": await q.message.reply_text("اكتب /trade_down BTC 1000")
+    elif q.data=="bank_deposit": await q.message.reply_text("اكتب /deposit 1000")
+    elif q.data=="bank_withdraw": await q.message.reply_text("اكتب /withdraw 1000")
+    elif q.data=="attack": await q.message.reply_text("رد على حد واكتب /attack")
+    elif q.data=="profile": await q.message.reply_text(f"👤 {u['name']} 💰 {u['coins']:,}")
+    elif q.data=="top": await q.message.reply_text("اكتب /top")
+    elif q.data=="marry": await q.message.reply_text("رد على حد واكتب /marry")
+async def add_coins_cmd(update,context):
+    d=load_data(); u=get_user(d,update.effective_user.id,update.effective_user)
+    if not context.args: await update.message.reply_text("اكتب /add 10000"); return
+    try: amt=int(context.args[0])
+    except: await update.message.reply_text("رقم غلط"); return
+    u['coins']+=amt; save_data(d); await update.message.reply_text(f"✅ خدت {amt:,} 💰 رصيدك {u['coins']:,}")
+async def help_cmd(update,context): await update.message.reply_text("📋 /start /shop /buy_w w1 /buy_p p1 /buy_h h1 /buy_c c1 /sell_w w1 /balance /daily /work /attack /profile /top /marry /divorce /steal /bank /deposit /withdraw /bank_interest /bank_upgrade /trade /markets /trade_up /trade_down /buy_trade /sell_trade /portfolio /demo /loan /invest")
+    # PART 9/10 - EXTRA COMMANDS - كل دالة 3 سطور وبتتحسب في الـ 10000
+async def gift_cmd(update,context):
+    d=load_data(); me=get_user(d,update.effective_user.id,update.effective_user)
+    if not update.message.reply_to_message or len(context.args)<1: await update.message.reply_text("رد على حد واكتب /gift 1000"); return
+    try: amt=int(context.args[0])
+    except: await update.message.reply_text("رقم غلط"); return
+    if amt>me['coins']: await update.message.reply_text("فلوسك مش كفاية"); return
+    tid=str(update.message.reply_to_message.from_user.id); tgt=get_user(d,tid,update.message.reply_to_message.from_user); me['coins']-=amt; tgt['coins']+=amt; save_data(d); await update.message.reply_text(f"🎁 بعت {amt:,} لـ {tgt['name']}")
+async def heal_cmd(update,context):
+    d=load_data(); u=get_user(d,update.effective_user.id,update.effective_user)
+    if u['coins']<500: await update.message.reply_text("محتاج 500 عشان تتعالج"); return
+    u['coins']-=500; u['health']=100; save_data(d); await update.message.reply_text("❤️ اتعالجت 100%")
+async def levelup_cmd(update,context):
+    d=load_data(); u=get_user(d,update.effective_user.id,update.effective_user)
+    need=u['level']*1000
+    if u['xp']<need: await update.message.reply_text(f"محتاج {need} XP عندك {u['xp']}"); return
+    u['xp']-=need; u['level']+=1; u['coins']+=u['level']*1000; save_data(d); await update.message.reply_text(f"⭐ بقيت ليفل {u['level']} وخدت {u['level']*1000:,} هدية")
+    # PART 10/10 - MAIN
+def main():
+    app=Application.builder().token(TOKEN).build()
+    app.add_handler(CommandHandler("start",start))
+    app.add_handler(CommandHandler("help",help_cmd))
+    app.add_handler(CommandHandler("balance",balance))
+    app.add_handler(CommandHandler("profile",profile))
+    app.add_handler(CommandHandler("daily",daily))
+    app.add_handler(CommandHandler("work",work))
+    app.add_handler(CommandHandler("shop",shop))
+    app.add_handler(CommandHandler("shop_w",make_shop(WEAPONS,"⚔️ اسلحة","shop_w")))
+    app.add_handler(CommandHandler("shop_p",make_shop(PETS,"🐾 حيوانات","shop_p")))
+    app.add_handler(CommandHandler("shop_h",make_shop(HOUSES,"🏠 بيوت","shop_h")))
+    app.add_handler(CommandHandler("shop_c",make_shop(CARS,"🚗 عربيات","shop_c")))
+    app.add_handler(CommandHandler("top",top))
+    app.add_handler(CommandHandler("marry",marry))
+    app.add_handler(CommandHandler("divorce",divorce))
+    app.add_handler(CommandHandler("steal",steal))
+    app.add_handler(CommandHandler("attack",attack))
+    app.add_handler(CommandHandler("bank",bank_cmd))
+    app.add_handler(CommandHandler("deposit",deposit_cmd))
+    app.add_handler(CommandHandler("withdraw",withdraw_cmd))
+    app.add_handler(CommandHandler("bank_interest",bank_interest_cmd))
+    app.add_handler(CommandHandler("bank_upgrade",bank_upgrade_cmd))
+    app.add_handler(CommandHandler("trade",trade_cmd))
+    app.add_handler(CommandHandler("markets",markets_cmd))
+    app.add_handler(CommandHandler("trade_up",trade_up_cmd))
+    app.add_handler(CommandHandler("trade_down",trade_down_cmd))
+    app.add_handler(CommandHandler("buy_trade",buy_trade_cmd))
+    app.add_handler(CommandHandler("sell_trade",sell_trade_cmd))
+    app.add_handler(CommandHandler("portfolio",portfolio_cmd))
+    app.add_handler(CommandHandler("demo",demo_cmd))
+    app.add_handler(CommandHandler("loan",loan_cmd))
+    app.add_handler(CommandHandler("invest",invest_cmd))
+    app.add_handler(CommandHandler("gift",gift_cmd))
+    app.add_handler(CommandHandler("heal",heal_cmd))
+    app.add_handler(CommandHandler("levelup",levelup_cmd))
+    app.add_handler(CommandHandler("add",add_coins_cmd))
+    app.add_handler(CommandHandler("buy_w",lambda u,c: buy(u,c,WEAPONS,"weapons","w")))
+    app.add_handler(CommandHandler("buy_p",lambda u,c: buy(u,c,PETS,"pets","p")))
+    app.add_handler(CommandHandler("buy_h",lambda u,c: buy(u,c,HOUSES,"houses","h")))
+    app.add_handler(CommandHandler("buy_c",lambda u,c: buy(u,c,CARS,"cars","c")))
+    app.add_handler(CommandHandler("sell_w",lambda u,c: sell(u,c,WEAPONS,"weapons")))
+    app.add_handler(CommandHandler("sell_p",lambda u,c: sell(u,c,PETS,"pets")))
+    app.add_handler(CommandHandler("sell_h",lambda u,c: sell(u,c,HOUSES,"houses")))
+    app.add_handler(CommandHandler("sell_c",lambda u,c: sell(u,c,CARS,"cars")))
+    app.add_handler(CallbackQueryHandler(on_button))
+    print("Bot running...")
+    app.run_polling()
+if __name__=="__main__": main()
+# END - 10/10 - BOT DONE
