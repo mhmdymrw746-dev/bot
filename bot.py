@@ -2,7 +2,7 @@
 import json, random, time, os
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
-TOKEN="PUT_YOUR_TOKEN_HERE"
+TOKEN=os.getenv("BOT_TOKEN")
 DATA_FILE="data.json"
 def load_data():
     if not os.path.exists(DATA_FILE): return {"users":{}}
