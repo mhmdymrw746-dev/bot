@@ -5,7 +5,7 @@ from flask import Flask
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
 
-TOKEN = "PUT_YOUR_TOKEN_HERE"
+TOKEN = os.environ.get("TOKEN")
 OWNER_ID = 8188263997
 ADMIN_USERNAME = "@TRAN_5"
 
