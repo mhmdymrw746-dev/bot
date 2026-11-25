@@ -1,377 +1,262 @@
-# ===== BOT TRAN - الاونر @TRAN_5 👑 - لريندر =====
+# ===== BOT TRAN - تيليجرام - الاونر @TRAN_5 👑 =====
 import os, random, time, threading, requests
-from flask import Flask, request, jsonify
-from datetime import datetime
+from flask import Flask
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, MessageHandler, ContextTypes, filters
 
-app = Flask(__name__)
-
-# ===== الاعدادات =====
-OWNER_ID = "8188263997"
+TOKEN = os.environ.get("BOT_TOKEN", "حط_توكن_البوت_هنا")
+OWNER_ID = 8188263997
 OWNER_USER = "@TRAN_5"
-BANK_NAME = "بنك TRAN 👑"
-TAX = 0.05
 
-SUPPORT_TEAM = [
-    {"id": "SUPPORT_1", "user": "@cat_max_10", "name": "Mr cat", "shift": "صبح", "online": True, "solved": 0, "rating": 5},
-    {"id": "SUPPORT_2", "user": "@MOON_104", "name": "تيتو", "shift": "ليل", "online": True, "solved": 0, "rating": 5},
-]
+# الدعم
+SUPPORT = {
+    "@cat_max_10": {"name": "Mr cat", "shift": "صبح", "online": True, "solved": 0},
+    "@MOON_104": {"name": "تيتو", "shift": "ليل", "online": True, "solved": 0},
+}
+SUPPORT_IDS = []  # هنحط ايديهاتهم بعدين
 
-# ===== الداتا =====
-users = {}  # {user_id: {...}}
-tickets = {}  # {id: {...}}
+# الداتا
+users = {}
+tickets = {}
 ticket_count = 0
 logs = []
-families = {}
 
 def get_user(uid, name="بطل"):
     if uid not in users:
-        users[uid] = {
-            "name": name, "money": 1000, "bank": 0, "level": 1, "xp": 0,
-            "job": "عاطل", "married": None, "family": None, "items": [],
-            "car": None, "house": None, "plane": False, "warns": 0,
-            "banned": False, "last_daily": 0, "debt": 0, "pet": None
-        }
+        users[uid] = {"name": name, "money": 1000, "bank": 0, "level": 1, "xp": 0, "job": "عاطل", "married": None, "family": None, "car": None, "house": None, "plane": False, "debt": 0, "banned": False, "last_daily": 0}
     return users[uid]
 
-def is_owner(uid):
-    return OWNER_ID in str(uid) or "TRAN_5" in str(uid)
+def fmt(n): return f"{int(n):,}"
 
-def is_support(uid):
-    return any(s["user"] in str(uid) or s["id"] in str(uid) for s in SUPPORT_TEAM)
+def main_kb(is_owner=False):
+    kb = [
+        [InlineKeyboardButton("💰 فلوسي", callback_data="money"), InlineKeyboardButton("🎰 كازينو", callback_data="casino")],
+        [InlineKeyboardButton("🥷 سرقة", callback_data="steal"), InlineKeyboardButton("💼 شغل", callback_data="work")],
+        [InlineKeyboardButton("🏦 بنك", callback_data="bank"), InlineKeyboardButton("💸 تحويل", callback_data="transfer")],
+        [InlineKeyboardButton("🚗 عربيتي", callback_data="car"), InlineKeyboardButton("🏠 عقارات", callback_data="house")],
+        [InlineKeyboardButton("🏆 التوب", callback_data="top"), InlineKeyboardButton("🎁 هدية يومية", callback_data="daily")],
+        [InlineKeyboardButton("🆘 دعم البوت", callback_data="support")],
+    ]
+    if is_owner:
+        kb.append([InlineKeyboardButton("👑 لوحة الاونر", callback_data="owner")])
+    kb.append([InlineKeyboardButton("👥 فريق الدعم", callback_data="team")])
+    return InlineKeyboardMarkup(kb)
 
-def fmt(n):
-    return f"{int(n):,}"
-
-# ===== القوايم =====
-def main_menu(is_own=False, is_sup=False):
-    m = f"""🏦 *{BANK_NAME}*
-أهلا يا بطل 👑 اختار:
-
-💰 فلوسك: /فلوسي
-🎰 كازينو | 🥷 سرقة | 💼 شغل
-🏦 بنك | 💸 تحويل | 🎁 هدية
-🏠 عقارات | 🚗 عربيتي | ✈️ طيارة
-👨‍👩‍👧 عيلتي | 💍 اتجوز | 📋 مهامي
-🏆 التوب | 🆘 دعم البوت
-"""
-    if is_own:
-        m += "\n👑 *لوحة الاونر:* /اونر"
-    if is_sup:
-        m += "\n🆘 *لوحة الدعم:* /دعم"
-    return m
-
-OWNER_MENU = """
-👑 *لوحة الاونر @TRAN_5*
-[ 💰 ادي فلوس للكل ] /ادي_للكل 1000
-[ 💸 اسحب من الكل ] /اسحب_من_الكل 500
-[ 🎁 هدية للكل ] /هدية_للكل
-[ 📢 اعلان للكل ] /اعلان
-[ 👀 مين سرق مين ] /سجل
-[ 📊 احصائيات ] /احصائيات
-[ 🔥 حدث خاص ] /حدث
-[ 🏆 مسابقة ] /مسابقة
-[ 🚫 حظر ] /حظر @حد
-[ ✅ فك ] /فك @حد
-[ 👥 فريق الدعم ] /فريق_الدعم
-[ ⏰ صحي البوت ] /صحيني
-[ 🟢 البوت شغال؟ ] /حالة
-[ 🔄 ريستارت ] /ريستارت
-[ 🔙 رجوع ] /قايمة
-"""
-
-SUPPORT_MENU = """
-🆘 *لوحة الدعم*
-[ 🟢 انا موجود ] /موجود
-[ 🔴 انا مشغول ] /مشغول
-[ 📩 التذاكر ] /تذاكر
-[ ✅ اقبل ] /اقبل 1
-[ 💰 تعويض ] /تعويض 1 1000
-[ ✅ قفل ] /قفل 1
-[ 🔄 انقل ] /انقل 1
-"""
-
-# ===== محرك البوت - هنا كل الأوامر =====
-def handle_message(user_id, name, text):
-    global ticket_count
-    text = text.strip()
-    low = text.lower()
-    u = get_user(user_id, name)
-    owner = is_owner(user_id)
-    sup = is_support(user_id)
-
-    if u["banned"] and not owner:
-        return "انت محظور يا معلم 🚫 كلم الدعم"
-
-    # ===== قايمة =====
-    if low in ["قايمة", "/قايمة", "menu", "hi", "هاي", "السلام عليكم"]:
-        return main_menu(owner, sup)
-    if low == "/اونر" and owner:
-        return OWNER_MENU
-    if low == "/اونر" and not owner:
-        return "انت كداب يا معلم، الاونر الحقيقي @TRAN_5 بس 😂👑"
-    if low == "/دعم" and (sup or owner):
-        return SUPPORT_MENU
-
-    # ===== فلوس =====
-    if low in ["/فلوسي", "/رصيد"]:
-        return f"""💰 *فلوسك يا {name}*
-كاش: {fmt(u['money'])}
-بنك: {fmt(u['bank'])}
-مستوى: {u['level']} | XP: {u['xp']}
-شغل: {u['job']}
-عيلة: {u['family'] or 'مفيش'}
-متجوز: {u['married'] or 'لا'}
-ديون: {fmt(u['debt'])}"""
-    if low == "/يومية":
-        now = time.time()
-        if now - u["last_daily"] < 86400:
-            return "خدت اليومية خلاص، تعالى بكرة 😂"
-        u["last_daily"] = now; u["money"] += 1000
-        return "خدت 1000 يومية 🎁💰"
-    if low.startswith("/تحويل"):
-        try:
-            amt = int(text.split()[1])
-        except:
-            return "اكتب: /تحويل 500 @حد"
-        if u["money"] < amt:
-            return "فلوسك مش كفاية 😭"
-        tax = int(amt * TAX); u["money"] -= amt
-        return f"تم تحويل {fmt(amt-tax)} (ضريبة {fmt(tax)}) ✅"
-    if low == "/بنك":
-        return "🏦 *البنك*\n/ايداع 1000\n/سحب 500\n/قرض 5000\n/سدد"
-    if low.startswith("/ايداع"):
-        try: a = int(text.split()[1])
-        except: return "اكتب /ايداع 1000"
-        if u["money"] < a: return "ممعكش 😭"
-        u["money"] -= a; u["bank"] += a
-        return f"حطيت {fmt(a)} في البنك ✅"
-    if low.startswith("/سحب"):
-        try: a = int(text.split()[1])
-        except: return "اكتب /سحب 500"
-        if u["bank"] < a: return "البنك مفهوش 😭"
-        u["bank"] -= a; u["money"] += a
-        return f"سحبت {fmt(a)} ✅"
-    if low.startswith("/قرض"):
-        try: a = int(text.split()[1])
-        except: a = 5000
-        u["money"] += a; u["debt"] += a
-        return f"خدت قرض {fmt(a)}، سدده بـ /سدد 💸"
-    if low == "/سدد":
-        if not u["debt"]: return "معليكش ديون"
-        if u["money"] < u["debt"]: return "فلوسك مش كفاية تسدد 😭"
-        u["money"] -= u["debt"]; u["debt"] = 0
-        return "سددت ديونك ✅"
-
-    # ===== سرقة / كازينو / شغل =====
-    if low in ["/سرقة", "/اسرق"]:
-        if random.random() < 0.5:
-            win = random.randint(200, 1200); u["money"] += win
-            logs.append(f"{name} سرق {win}")
-            return f"سرقت {fmt(win)} 🥷🔥"
-        else:
-            u["money"] = max(0, u["money"]-300)
-            return "اتمسكت! اتخصم منك 300 واتسجنت 😂🚨"
-    if low in ["/كازينو", "/قمار"]:
-        if u["money"] < 100: return "ممعكش فلوس للكازينو 😭"
-        if random.random() < 0.45:
-            u["money"] += 500; return "كسبت 500 في الكازينو 🎰🔥"
-        else:
-            u["money"] -= 200; return "خسرت 200 🎰😭"
-    if low == "/شغل":
-        jobs = [("دليفري", 300), ("مبرمج", 800), ("حرامي", 1000), ("تاجر", 600)]
-        j, amt = random.choice(jobs)
-        u["money"] += amt; u["xp"] += 10
-        if u["xp"] >= 100: u["level"] += 1; u["xp"] = 0
-        return f"اشتغلت {j} وكسبت {fmt(amt)} 💼"
-    if low == "/توب":
-        top = sorted(users.values(), key=lambda x: x["money"]+x["bank"], reverse=True)[:5]
-        t = "🏆 *التوب 5* 👑\n"
-        for i, x in enumerate(top):
-            t += f"{i+1}. {x['name']} - {fmt(x['money']+x['bank'])}\n"
-        return t
-    if low == "/مهامي":
-        return "📋 *مهامك النهاردة:*\n1. اسرق مرة /اسرق\n2. العب كازينو /كازينو\n3. ابعت هدية /هدية\nخلصهم وخد 2000 🎁"
-    if low == "/عربيتي":
-        return f"عربيتك: {u['car']} 🚗😎" if u["car"] else "معندكش عربية، اشتري بـ /اشتري عربية"
-    if low.startswith("/اشتري"):
-        if "عربية" in text:
-            if u["money"] < 15000: return "معكش 😭"
-            u["money"] -= 15000; u["car"] = "لمبرجيني"
-            return "مبروك اشتريت لمبرجيني 😎🔥"
-        if "شقة" in text:
-            if u["money"] < 20000: return "معكش 😭"
-            u["money"] -= 20000; u["house"] = "شقة"
-            return "مبروك اشتريت شقة 🏠🔥"
-        if "طيارة" in text:
-            if u["money"] < 100000: return "معكش 😭"
-            u["money"] -= 100000; u["plane"] = True
-            return "مبروك اشتريت طيارة ✈️ يا كابتن 👨‍✈️"
-    if low.startswith("/اتجوز"):
-        return f"مبرووووك {name} اتجوز 🎉❤️🎂\nالمتجوزين فلوسهم مشتركة"
-    if low == "/طلق":
-        return "لا حول ولا قوة، الطلاق مش حلو 😭"
-    if low.startswith("/اعمل_عيلة"):
-        n = text.split()[1] if len(text.split()) > 1 else "TRAN"
-        u["family"] = n
-        families.setdefault(n, []).append(name)
-        return f"عملت عيلة {n} 👑🔥"
-    if low.startswith("/عيلة"):
-        return f"👨‍👩‍👧 *عيلتك:* {u['family'] or 'مفيش، اعمل عيلة بـ /اعمل_عيلة TRAN'}"
-
-    # ===== الدعم =====
-    if low in ["/دعم", "دعم", "دعم البوت"]:
-        return """🆘 *دعم البوت*
-عندك مشكلة؟ اكتب:
- /مشكلة فلوسي راحت
- /مشكلة حد سرقني
- /مشكلة البوت مش شغال
- /مشكلة حد شتمني
- /مشكلة عندي فكرة"""
-    if low.startswith("/مشكلة"):
-        ticket_count += 1; tid = ticket_count
-        prob = text.replace("/مشكلة", "").strip() or "مشكلة عامة"
-        tickets[tid] = {"user": user_id, "name": name, "problem": prob, "status": "مفتوحة", "support": None}
-        # هنا البوت هيبعت اشعار للاونر والدعم - في الواتساب هيتبعت رسالة
-        notif = f"🔔 حد عايز دعم!\n👤 {name}\n🎫 تذكرة #{tid}\n📝 {prob}\nمين هيقبل؟ /اقبل {tid}\n@TRAN_5 @cat_max_10 @MOON_104"
-        print(notif)
-        return f"تم يا بطل، بعتنا مشكلتك للدعم ❤️✅\nرقم تذكرتك: #{tid}\nالدعم هيكلمك بسرعة\n---\n[اشعار راح للاونر والدعم]:\n{notif}"
-    if low.startswith("/تذاكر") and (sup or owner):
-        open_t = [(k, v) for k, v in tickets.items() if v["status"] == "مفتوحة"]
-        if not open_t: return "مفيش تذاكر مفتوحة ✅"
-        t = "📩 *التذاكر المفتوحة:*\n"
-        for k, v in open_t: t += f"#{k} - {v['name']}: {v['problem']}\n"
-        return t + "\nاقبل بـ /اقبل رقم"
-    if low.startswith("/اقبل") and (sup or owner):
-        try: tid = int(text.split()[1])
-        except: return "اكتب /اقبل رقم"
-        tk = tickets.get(tid)
-        if not tk: return "مفيش تذكرة بالرقم ده"
-        if tk["support"]: return f"خلاص {tk['support']} قبلها"
-        tk["support"] = name; tk["status"] = "مقبولة"
-        return f"✅ انت قبلت تذكرة #{tid}\nكلم {tk['name']} دلوقتي ❤️\nاوامر: /تعويض {tid} 1000 - /قفل {tid} - /انقل {tid}"
-    if low.startswith("/قفل") and (sup or owner):
-        try: tid = int(text.split()[1])
-        except: return "اكتب /قفل رقم"
-        if tid in tickets:
-            tickets[tid]["status"] = "مقفولة"
-            for s in SUPPORT_TEAM:
-                if s["name"] == name: s["solved"] += 1
-            return f"قفلت تذكرة #{tid} ✅\nقيم الدعم بـ ⭐ من 1-5"
-    if low.startswith("/تعويض") and (sup or owner):
-        try:
-            _, tid, amt = text.split(); tid = int(tid); amt = int(amt)
-        except: return "اكتب /تعويض رقم مبلغ"
-        tk = tickets.get(tid)
-        if tk:
-            get_user(tk["user"])["money"] += amt
-            return f"ديت {tk['name']} تعويض {fmt(amt)} ✅"
-    if low.startswith("/انقل") and (sup or owner):
-        try: tid = int(text.split()[1])
-        except: return "اكتب /انقل رقم"
-        if tid in tickets:
-            tickets[tid]["support"] = None; tickets[tid]["status"] = "مفتوحة"
-            return f"نقلت تذكرة #{tid} للدعم التاني 🔄"
-    if low == "/موجود" and sup:
-        return "تمام انت دلوقتي موجود 🟢 والبوت هيبعتلك تذاكر"
-    if low == "/مشغول" and sup:
-        return "تمام انت مشغول 🔴 البوت هيودي التذاكر للتاني"
-    if low == "/فريق_الدعم" and owner:
-        t = "👥 *فريق الدعم:*\n"
-        for s in SUPPORT_TEAM:
-            t += f"{s['name']} {s['user']} - شيفت {s['shift']} - حل {s['solved']} مشكلة - تقييم {s['rating']}⭐\n"
-        return t
-
-    # ===== الاونر =====
-    if owner:
-        if low.startswith("/ادي_للكل"):
-            try: a = int(text.split()[1])
-            except: a = 1000
-            for x in users.values(): x["money"] += a
-            return f"ديت للكل {fmt(a)} 🎁👑"
-        if low.startswith("/اسحب_من_الكل"):
-            try: a = int(text.split()[1])
-            except: a = 500
-            for x in users.values(): x["money"] = max(0, x["money"]-a)
-            return f"سحبت من الكل {fmt(a)} 💸"
-        if low == "/هدية_للكل":
-            for x in users.values(): x["money"] += 1000
-            return "الاونر @TRAN_5 بعتلكم هدية 1000، قولوله شكرا ❤️👑"
-        if low == "/سجل":
-            return "👀 *سجل السرقة:*\n" + ("\n".join(logs[-10:]) or "مفيش سرقة")
-        if low == "/احصائيات":
-            total = sum(x["money"]+x["bank"] for x in users.values())
-            return f"📊 *احصائيات البنك*\nعدد الناس: {len(users)}\nفلوس البنك: {fmt(total)}\nتذاكر: {ticket_count}"
-        if low == "/مسابقة":
-            return "🏆 *مسابقة فورية!* أول واحد يكتب 'انا' يكسب 5000 🔥"
-        if low == "/حدث":
-            return "🔥 *حدث خاص!* النهاردة كل السرقة ×2 والضرايب 0% - من الاونر @TRAN_5 👑"
-        if low == "/صحيني":
-            return "انا صاحي يا اونر، أمرني 👑😎"
-        if low == "/حالة":
-            return "شغال 100% يا اونر، نمت 0 دقيقة النهاردة 🟢👑"
-        if low == "/ريستارت":
-            return "بعمل ريستارت وهرجع في 10 ثواني 🔄"
-        if low.startswith("/حظر"):
-            return "حظرت الشخص 🚫"
-        if low.startswith("/فك"):
-            return "فكيت الحظر ✅"
-        if low.startswith("/اعلان"):
-            return f"📢 *اعلان من الاونر @TRAN_5:* {text.replace('/اعلان','')}"
-
-    # ===== رد ذكي =====
-    if "زعلان" in low:
-        return "مالك يا بطل؟ تعال العب وهنفرفشك 😂❤️ /كازينو"
-    if "فرحان" in low:
-        return "فرحان ليه؟ فرحنا معاك 🎉"
-    if low == "انا":
-        return "كسبت المسابقة 5000! 🎉🔥" if random.random() < 0.3 else "اهلا بيك 😂"
-
-    return "مش فاهم يا بطل 😂 اكتب /قايمة"
-
-# ===== سيرفر ريندر =====
+# ===== سيرفر ريندر - عشان البوت مينامش =====
+app = Flask(__name__)
 @app.route("/")
-def home():
-    return "البوت شغال يا اونر 👑🟢 - TRAN BOT"
-
+def home(): return "البوت شغال يا اونر 👑🟢 - TRAN BOT - تيليجرام"
 @app.route("/ping")
-def ping():
-    return "pong - انا صاحي 😎"
-
+def ping(): return "pong - انا صاحي 😎"
 @app.route("/health")
-def health():
-    return jsonify({"status": "online", "users": len(users), "tickets": ticket_count, "owner": OWNER_USER})
+def health(): return {"status": "online", "users": len(users), "tickets": ticket_count}
 
-@app.route("/webhook", methods=["POST"])
-def webhook():
-    # ده اللي الواتساب هيبعت عليه - او استخدمه مع اي منصة
-    data = request.get_json() or {}
-    user_id = data.get("from", "unknown")
-    name = data.get("name", "بطل")
-    text = data.get("text", "")
-    reply = handle_message(user_id, name, text)
-    return jsonify({"reply": reply})
-
-@app.route("/test")
-def test():
-    # جرب البوت من المتصفح: /test?msg=/فلوسي&user=123
-    msg = request.args.get("msg", "/قايمة")
-    user = request.args.get("user", "test123")
-    name = request.args.get("name", "بطل")
-    return handle_message(user, name, msg)
-
-# ===== صحي نفسك كل 4 دقايق - عشان ريندر مينيموش =====
 def keep_alive():
-    url = os.environ.get("RENDER_EXTERNAL_URL", "https://bot-tran.onrender.com")
+    url = os.environ.get("RENDER_EXTERNAL_URL", "")
+    if not url:
+        # لو مش متظبط، جرب اللينك بتاعك
+        url = "https://bot-tran.onrender.com"
     while True:
         try:
             requests.get(f"{url}/ping", timeout=10)
-            print(f"صحيت نفسي ✅ {datetime.now()}")
+            print("صحيت نفسي ✅")
         except Exception as e:
             print(f"نمت شوية: {e}")
-        time.sleep(240)  # 4 دقايق
+        time.sleep(240) # كل 4 دقايق
 
 threading.Thread(target=keep_alive, daemon=True).start()
 
-if __name__ == "__main__":
+def run_flask():
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
+
+# ===== أوامر البوت =====
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    uid = update.effective_user.id
+    name = update.effective_user.first_name
+    u = get_user(uid, name)
+    is_owner = (uid == OWNER_ID)
+    await update.message.reply_text(
+        f"🏦 *بنك TRAN* 👑\nأهلا يا {name} يا بطل، اختار:",
+        reply_markup=main_kb(is_owner), parse_mode="Markdown"
+    )
+
+async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    q = update.callback_query
+    await q.answer()
+    uid = q.from_user.id
+    name = q.from_user.first_name
+    u = get_user(uid, name)
+    data = q.data
+    is_owner = (uid == OWNER_ID)
+
+    if data == "money":
+        await q.edit_message_text(f"💰 *فلوسك يا {name}*\nكاش: {fmt(u['money'])}\nبنك: {fmt(u['bank'])}\nمستوى: {u['level']} | XP: {u['xp']}\nشغل: {u['job']}", parse_mode="Markdown", reply_markup=main_kb(is_owner))
+    elif data == "casino":
+        if u["money"] < 100:
+            await q.edit_message_text("ممعكش فلوس للكازينو 😭", reply_markup=main_kb(is_owner)); return
+        if random.random() < 0.45:
+            u["money"] += 500; txt = "كسبت 500 في الكازينو 🎰🔥"
+        else:
+            u["money"] -= 200; txt = "خسرت 200 🎰😭"
+        await q.edit_message_text(txt, reply_markup=main_kb(is_owner))
+    elif data == "steal":
+        if random.random() < 0.5:
+            win = random.randint(200, 1200); u["money"] += win; logs.append(f"{name} سرق {win}")
+            txt = f"سرقت {fmt(win)} 🥷🔥"
+        else:
+            u["money"] = max(0, u["money"]-300); txt = "اتمسكت! اتخصم منك 300 😂🚨"
+        await q.edit_message_text(txt, reply_markup=main_kb(is_owner))
+    elif data == "work":
+        jobs = [("دليفري", 300), ("مبرمج", 800), ("حرامي", 1000), ("تاجر", 600)]
+        j, amt = random.choice(jobs); u["money"] += amt; u["xp"] += 10
+        if u["xp"] >= 100: u["level"] += 1; u["xp"] = 0
+        await q.edit_message_text(f"اشتغلت {j} وكسبت {fmt(amt)} 💼", reply_markup=main_kb(is_owner))
+    elif data == "bank":
+        await q.edit_message_text("🏦 *البنك*\n/ايداع 1000\n/سحب 500\n/قرض 5000\n/سدد\n/فلوسي", parse_mode="Markdown", reply_markup=main_kb(is_owner))
+    elif data == "transfer":
+        await q.edit_message_text("اكتب: /تحويل 500 @حد", reply_markup=main_kb(is_owner))
+    elif data == "car":
+        await q.edit_message_text(f"عربيتك: {u['car'] or 'معندكش'} 🚗\nاشتري بـ /اشتري عربية 15000", reply_markup=main_kb(is_owner))
+    elif data == "house":
+        await q.edit_message_text("🏠 عقارات:\n/اشتري شقة 20000\n/اشتري طيارة 100000", reply_markup=main_kb(is_owner))
+    elif data == "top":
+        top = sorted(users.values(), key=lambda x: x["money"]+x["bank"], reverse=True)[:5]
+        t = "🏆 *التوب 5* 👑\n"
+        for i, x in enumerate(top): t += f"{i+1}. {x['name']} - {fmt(x['money']+x['bank'])}\n"
+        await q.edit_message_text(t, parse_mode="Markdown", reply_markup=main_kb(is_owner))
+    elif data == "daily":
+        now = time.time()
+        if now - u["last_daily"] < 86400:
+            await q.edit_message_text("خدت اليومية خلاص 😂", reply_markup=main_kb(is_owner)); return
+        u["last_daily"] = now; u["money"] += 1000
+        await q.edit_message_text("خدت 1000 يومية 🎁💰", reply_markup=main_kb(is_owner))
+    elif data == "support":
+        kb = InlineKeyboardMarkup([
+            [InlineKeyboardButton("🐛 البوت مش شغال", callback_data="sup_bug")],
+            [InlineKeyboardButton("💰 فلوسي راحت", callback_data="sup_money")],
+            [InlineKeyboardButton("🥷 حد سرقني", callback_data="sup_steal")],
+            [InlineKeyboardButton("💡 عندي فكرة", callback_data="sup_idea")],
+            [InlineKeyboardButton("🔙 رجوع", callback_data="back")],
+        ])
+        await q.edit_message_text("🆘 *دعم البوت*\nعندك مشكلة؟ اختار:", parse_mode="Markdown", reply_markup=kb)
+    elif data.startswith("sup_"):
+        global ticket_count
+        ticket_count += 1; tid = ticket_count
+        probs = {"sup_bug": "البوت مش شغال", "sup_money": "فلوسي راحت", "sup_steal": "حد سرقني", "sup_idea": "عندي فكرة"}
+        prob = probs.get(data, "مشكلة عامة")
+        tickets[tid] = {"user": uid, "name": name, "problem": prob, "status": "مفتوحة", "support": None}
+        # اشعار للاونر والدعم
+        notif = f"🔔 *حد عايز دعم!*\n👤 {name}\n🎫 تذكرة #{tid}\n📝 {prob}\nمين هيقبل؟"
+        kb2 = InlineKeyboardMarkup([[InlineKeyboardButton("✅ انا هكلمه", callback_data=f"accept_{tid}")]])
+        # ابعت للاونر
+        try:
+            await context.bot.send_message(chat_id=OWNER_ID, text=notif, reply_markup=kb2, parse_mode="Markdown")
+        except: pass
+        # ابعت للدعم - حط ايديهاتهم هنا
+        for sid in SUPPORT_IDS:
+            try: await context.bot.send_message(chat_id=sid, text=notif, reply_markup=kb2, parse_mode="Markdown")
+            except: pass
+        await q.edit_message_text(f"تم يا بطل ❤️✅\nرقم تذكرتك: #{tid}\nبعتنا للدعم، واللي فاضي هيقبل ويكلمك\n@TRAN_5 @cat_max_10 @MOON_104", reply_markup=main_kb(is_owner))
+    elif data.startswith("accept_"):
+        tid = int(data.split("_")[1]); tk = tickets.get(tid)
+        if not tk:
+            await q.edit_message_text("مفيش تذكرة بالرقم ده"); return
+        if tk["support"]:
+            await q.edit_message_text(f"خلاص {tk['support']} قبلها"); return
+        tk["support"] = name; tk["status"] = "مقبولة"
+        await q.edit_message_text(f"✅ انت قبلت تذكرة #{tid}\nكلم {tk['name']} دلوقتي ❤️\nاوامر: /تعويض {tid} 1000 - /قفل {tid} - /انقل {tid}")
+        try: await context.bot.send_message(chat_id=tk["user"], text=f"الدعم {name} قبل طلبك وهيكلمك دلوقتي ❤️")
+        except: pass
+    elif data == "owner" and is_owner:
+        kb = InlineKeyboardMarkup([
+            [InlineKeyboardButton("💰 ادي للكل 1000", callback_data="owner_give")],
+            [InlineKeyboardButton("📊 احصائيات", callback_data="owner_stats")],
+            [InlineKeyboardButton("📩 التذاكر", callback_data="owner_tickets")],
+            [InlineKeyboardButton("👥 فريق الدعم", callback_data="team")],
+            [InlineKeyboardButton("🔙 رجوع", callback_data="back")],
+        ])
+        await q.edit_message_text("👑 *لوحة الاونر @TRAN_5*", parse_mode="Markdown", reply_markup=kb)
+    elif data == "owner_give" and is_owner:
+        for x in users.values(): x["money"] += 1000
+        await q.edit_message_text("ديت للكل 1000 🎁👑", reply_markup=main_kb(True))
+    elif data == "owner_stats" and is_owner:
+        total = sum(x["money"]+x["bank"] for x in users.values())
+        await q.edit_message_text(f"📊 *احصائيات*\nعدد الناس: {len(users)}\nفلوس البنك: {fmt(total)}\nتذاكر: {ticket_count}", parse_mode="Markdown", reply_markup=main_kb(True))
+    elif data == "owner_tickets" and is_owner:
+        open_t = [(k, v) for k, v in tickets.items() if v["status"] == "مفتوحة"]
+        if not open_t: await q.edit_message_text("مفيش تذاكر ✅", reply_markup=main_kb(True)); return
+        t = "📩 *التذاكر:*\n"
+        for k, v in open_t: t += f"#{k} - {v['name']}: {v['problem']}\n"
+        await q.edit_message_text(t, parse_mode="Markdown", reply_markup=main_kb(True))
+    elif data == "team":
+        t = "👥 *فريق الدعم:*\n👑 @TRAN_5 - الاونر الكبير\n🟢 @cat_max_10 - Mr cat - شيفت صبح\n🌙 @MOON_104 - تيتو - شيفت ليل\n\nأي حد عايز دعم، يجيلهم اشعار واللي فاضي يقبل ويكلمه ⚡"
+        await q.edit_message_text(t, reply_markup=main_kb(is_owner))
+    elif data == "back":
+        await q.edit_message_text("🏦 *بنك TRAN* 👑\nاختار:", reply_markup=main_kb(is_owner))
+
+async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.message: return
+    uid = update.effective_user.id; name = update.effective_user.first_name; text = update.message.text.strip(); low = text.lower()
+    u = get_user(uid, name); owner = (uid == OWNER_ID)
+    if low.startswith("/مشكلة"):
+        global ticket_count
+        ticket_count += 1; tid = ticket_count
+        prob = text.replace("/مشكلة", "").strip() or "مشكلة عامة"
+        tickets[tid] = {"user": uid, "name": name, "problem": prob, "status": "مفتوحة", "support": None}
+        kb2 = InlineKeyboardMarkup([[InlineKeyboardButton("✅ انا هكلمه", callback_data=f"accept_{tid}")]])
+        notif = f"🔔 *حد عايز دعم!*\n👤 {name}\n🎫 تذكرة #{tid}\n📝 {prob}"
+        try: await context.bot.send_message(chat_id=OWNER_ID, text=notif, reply_markup=kb2, parse_mode="Markdown")
+        except: pass
+        await update.message.reply_text(f"تم يا بطل ❤️✅ رقم تذكرتك #{tid}")
+        return
+    if low.startswith("/اقبل"):
+        try: tid = int(text.split()[1])
+        except: await update.message.reply_text("اكتب /اقبل رقم"); return
+        tk = tickets.get(tid)
+        if tk and not tk["support"]:
+            tk["support"] = name; tk["status"] = "مقبولة"
+            await update.message.reply_text(f"✅ قبلت #{tid}، كلم {tk['name']}")
+        return
+    if low.startswith("/قفل"):
+        try: tid = int(text.split()[1])
+        except: return
+        if tid in tickets: tickets[tid]["status"] = "مقفولة"; await update.message.reply_text(f"قفلت #{tid} ✅")
+        return
+    if low.startswith("/تعويض"):
+        try: _, tid, amt = text.split(); tid=int(tid); amt=int(amt)
+        except: return
+        tk = tickets.get(tid)
+        if tk: get_user(tk["user"])["money"] += amt; await update.message.reply_text(f"ديت {tk['name']} {fmt(amt)} ✅")
+        return
+    if low.startswith("/ايداع"):
+        try: a = int(text.split()[1])
+        except: return
+        if u["money"] < a: await update.message.reply_text("ممعكش 😭"); return
+        u["money"] -= a; u["bank"] += a; await update.message.reply_text(f"حطيت {fmt(a)} في البنك ✅"); return
+    if low.startswith("/سحب"):
+        try: a = int(text.split()[1])
+        except: return
+        if u["bank"] < a: await update.message.reply_text("البنك مفهوش 😭"); return
+        u["bank"] -= a; u["money"] += a; await update.message.reply_text(f"سحبت {fmt(a)} ✅"); return
+    if low == "/فلوسي":
+        await update.message.reply_text(f"💰 فلوسك يا {name}\nكاش: {fmt(u['money'])}\nبنك: {fmt(u['bank'])}"); return
+    if low == "/صحيني" and owner:
+        await update.message.reply_text("انا صاحي يا اونر 👑😎"); return
+    if low == "/حالة":
+        await update.message.reply_text("شغال 100% يا اونر، نمت 0 دقيقة 🟢👑"); return
+
+# ===== تشغيل =====
+def main():
+    threading.Thread(target=run_flask, daemon=True).start()
+    app_tg = ApplicationBuilder().token(TOKEN).build()
+    app_tg.add_handler(CommandHandler("start", start))
+    app_tg.add_handler(CallbackQueryHandler(handle_button))
+    app_tg.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
+    # اوامر نصية زي /مشكلة /اقبل /قفل /تعويض /ايداع /سحب /فلوسي
+    app_tg.add_handler(MessageHandler(filters.COMMAND, handle_text))
+    print("البوت صاحي 👑🔥")
+    app_tg.run_polling()
+
+if __name__ == "__main__":
+    main()
