@@ -1,7 +1,4 @@
-# ============================================================
-# TRAN BOT - FINAL COMPLETE - ALL FEATURES OLD + NEW
-# OWNER: 8188263997 | 150+ FEATURES | BANK + OWNER + MAFIA + AI
-# ============================================================
+# TRAN BOT - FINAL 150 FEATURES - OWNER 8188263997
 import os, random, time, json, logging, threading
 from datetime import datetime
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
@@ -15,7 +12,7 @@ TOKEN = os.environ.get("BOT_TOKEN")
 OWNER_ID = int(os.environ.get("OWNER_ID", "8188263997"))
 WEBAPP_URL = os.environ.get("WEBAPP_URL", "https://t.me/")
 
-# ================= يصحي نفسه =================
+# ===== يصحي نفسه =====
 app_flask = Flask(__name__)
 @app_flask.route('/')
 def home(): return "TRAN ALIVE 👑🔥"
@@ -33,18 +30,16 @@ def self_ping():
 threading.Thread(target=run_flask, daemon=True).start()
 threading.Thread(target=self_ping, daemon=True).start()
 
-# ================= DB =================
-users = {}; codes = {}; clans = {}; marriages = {}; pets = {}; houses = {}; cars = {}; jailed = {}; mafias = {}
-stock_prices = {"TRAN": 100, "GOLD": 500, "BTC": 1000, "DOGE": 50}
+# ===== DB =====
+users = {}; codes = {}; clans = {}; marriages = {}; pets = {}; houses = {}; cars = {}; stock_prices = {"TRAN": 100, "GOLD": 500, "BTC": 1000, "DOGE": 50}
 lottery_players = []; auctions = []; mining_last = {}; tournaments = {"players": [], "prize": 10000}
-skins_shop = {"gold": {"name": "🥇 ذهبي", "price": 500}, "diamond": {"name": "💎 الماسي", "price": 1000}, "fire": {"name": "🔥 ناري", "price": 800}, "king": {"name": "👑 ملكي", "price": 2000}, "rainbow": {"name": "🌈 قوس قزح", "price": 1500}}
-quiz_q = [{"q": "ايه عاصمة مصر؟", "a": "القاهرة", "opts": ["القاهرة", "الجيزة", "اسكندرية"]}, {"q": "كم عدد ايام السنة؟", "a": "365", "opts": ["365", "360", "366"]}, {"q": "ايه اكبر كوكب؟", "a": "المشتري", "opts": ["المشتري", "المريخ", "زحل"]}, {"q": "ايه لون السماء؟", "a": "ازرق", "opts": ["ازرق", "احمر", "اخضر"]}]
-words = ["اسد", "قطة", "كلب", "سيارة", "بيت", "شمس", "قمر", "بحر"]
+skins_shop = {"gold": {"name": "🥇 ذهبي", "price": 500}, "diamond": {"name": "💎 الماسي", "price": 1000}, "fire": {"name": "🔥 ناري", "price": 800}, "king": {"name": "👑 ملكي", "price": 2000}}
+quiz_questions = [{"q": "ايه عاصمة مصر؟", "a": "القاهرة", "opts": ["القاهرة", "الجيزة", "اسكندرية"]}, {"q": "كم عدد ايام السنة؟", "a": "365", "opts": ["365", "360", "366"]}, {"q": "ايه اكبر كوكب؟", "a": "المشتري", "opts": ["المشتري", "المريخ", "زحل"]}]
 
 def get_user(uid, username="", name=""):
     uid = int(uid)
     if uid not in users:
-        users[uid] = {"id": uid, "username": username, "name": name, "coins": 100, "balance": 0, "bank": 0, "points": 0, "level": 1, "ref": 0, "ref_earned": 0, "banned": False, "vip": False, "loan": 0, "games": 0, "wins": 0, "losses": 0, "total_won": 0, "tasks": [], "last_daily": "", "joined": datetime.now().strftime("%Y-%m-%d"), "transactions": [], "ach": [], "stocks": {}, "notes": [], "power": 10, "edu": 0, "streak": 0, "skin": "عادي", "title": "", "insured": False, "mafia": "", "wanted": 0}
+        users[uid] = {"id": uid, "username": username, "name": name, "coins": 100, "balance": 0, "bank": 0, "points": 0, "level": 1, "ref": 0, "ref_earned": 0, "banned": False, "vip": False, "loan": 0, "games": 0, "wins": 0, "losses": 0, "total_won": 0, "tasks": [], "last_daily": "", "joined": datetime.now().strftime("%Y-%m-%d"), "transactions": [], "ach": [], "stocks": {}, "notes": [], "power": 10, "edu": 0, "streak": 0}
     return users[uid]
 def add_coins(uid, amt, reason=""):
     u = get_user(uid); u["coins"] += amt; u["points"] += amt
@@ -68,7 +63,7 @@ def main_menu(uid):
         [InlineKeyboardButton("👥 دعوة 👥", callback_data="ref"), InlineKeyboardButton("🏅 ترتيب 📊", callback_data="rank")],
         [InlineKeyboardButton("🎡 عجلة الحظ 🎡", callback_data="wheel"), InlineKeyboardButton("🎁 كود هدية 🎁", callback_data="gift")],
         [InlineKeyboardButton("👤 بروفايلي 👤", callback_data="profile"), InlineKeyboardButton("🆘 الدعم 🆘", callback_data="support")],
-        [InlineKeyboardButton("🕵️ مافيا 🕵️", callback_data="mafia_menu"), InlineKeyboardButton("ℹ️ معلومات ℹ️", callback_data="info")],
+        [InlineKeyboardButton("ℹ️ معلومات ℹ️", callback_data="info")],
     ]
     if int(uid) == OWNER_ID: kb.append([InlineKeyboardButton("👑 لوحة الاونر 👑🔥", callback_data="owner")])
     kb.append([InlineKeyboardButton("🔄 تحديث 🔄", callback_data="back")])
@@ -88,9 +83,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 try: await context.bot.send_message(inv, f"🎉 {u.first_name} دخل من لينكك +50 🪙")
                 except: pass
         except: pass
-    await update.message.reply_text(f"✨ **اهلا {u.first_name} في TRAN** ✨\n━━━━━━━━━━\n🪙 كوينز: `{user['coins']:,}`\n🏦 بنك: `{user['bank']:,}`\n💰 رصيد: `{user['balance']} ج`\n🏅 مستواك: {lvl_name(user['coins'])}\n👥 دعيت: `{user['ref']}`\n🕵️ مافيا: `{user.get('mafia') or 'مفيش'}`\n━━━━━━━━━━\n👇 اختار، كله شغال 100% 👇\n\n**اوامر سريعة:**\n`/mine` ⛏️ `/work` 💼 `/box` 📦 `/lottery` 🎰\n`/marry` 💍 `/trade` 📈 `/chat` 💬 `/ai` 🤖\n`/steal` 🕵️ `/mafia` 🏴 `/rob` 💰 `/jail` 🚔", reply_markup=main_menu(u.id), parse_mode=ParseMode.MARKDOWN)
+    await update.message.reply_text(f"✨ **اهلا {u.first_name} في TRAN** ✨\n━━━━━━━━━━\n🪙 كوينز: `{user['coins']:,}`\n🏦 بنك: `{user['bank']:,}`\n💰 رصيد: `{user['balance']} ج`\n🏅 مستواك: {lvl_name(user['coins'])}\n👥 دعيت: `{user['ref']}`\n━━━━━━━━━━\n👇 اختار، كله شغال 100% 👇\n\n**اوامر سريعة:**\n`/mine` ⛏️ `/work` 💼 `/box` 📦 `/lottery` 🎰\n`/marry` 💍 `/trade` 📈 `/chat` 💬 `/ai` 🤖", reply_markup=main_menu(u.id), parse_mode=ParseMode.MARKDOWN)
 
-# ================= CALLBACKS =================
 async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query; await q.answer(); uid = q.from_user.id; user = get_user(uid, q.from_user.username or "", q.from_user.first_name or ""); data = q.data
     if data == "back":
@@ -98,7 +92,7 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # BANK
     if data == "bank":
         kb = InlineKeyboardMarkup([[InlineKeyboardButton("💰 ايداع", callback_data="bank_deposit"), InlineKeyboardButton("💸 سحب", callback_data="bank_withdraw")], [InlineKeyboardButton("🔄 تحويل", callback_data="bank_transfer"), InlineKeyboardButton("💳 قرض", callback_data="bank_loan")], [InlineKeyboardButton("📈 فوايد", callback_data="bank_interest"), InlineKeyboardButton("📜 كشف حساب", callback_data="bank_history")], [InlineKeyboardButton("💎 فيزا TRAN", callback_data="bank_visa")], [InlineKeyboardButton("🔙 رجوع", callback_data="back")]])
-        await q.edit_message_text(f"🏦 **بنك TRAN** 🏦\n\n🪙 في ايدك: `{user['coins']:,}`\n🏦 في البنك: `{user['bank']:,}`\n💳 قرض عليك: `{user['loan']}`\n🛡️ تأمين: {'✅' if user.get('insured') else '❌'}", reply_markup=kb, parse_mode=ParseMode.MARKDOWN); return
+        await q.edit_message_text(f"🏦 **بنك TRAN** 🏦\n\n🪙 في ايدك: `{user['coins']:,}`\n🏦 في البنك: `{user['bank']:,}`\n💳 قرض عليك: `{user['loan']}`", reply_markup=kb, parse_mode=ParseMode.MARKDOWN); return
     if data == "bank_deposit":
         if user["coins"] >= 100: user["coins"] -= 100; user["bank"] += 100; await q.edit_message_text(f"✅ **ايداع تم!**\n🏦 بنك: `{user['bank']}` | 🪙 معاك: `{user['coins']}`", reply_markup=back2("bank"), parse_mode=ParseMode.MARKDOWN)
         else: await q.edit_message_text("❌ معكش 100 كوين", reply_markup=back2("bank")); return
@@ -114,25 +108,6 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         interest = int(user["bank"] * 0.1); user["bank"] += interest; await q.edit_message_text(f"📈 **فوايد +{interest} 🪙**\n🏦 {user['bank']}", reply_markup=back2("bank"), parse_mode=ParseMode.MARKDOWN); return
     if data == "bank_history": await q.edit_message_text(f"📜 **كشف حساب**\n\n" + ("\n".join(user["transactions"][-10:]) or "مفيش حركات"), reply_markup=back2("bank")); return
     if data == "bank_visa": await q.edit_message_text(f"💎 **فيزا TRAN**\n\n👤 {q.from_user.first_name}\n💳 رقم: `5335 {uid%10000:04d} 2026 8188`\n🏦 رصيد: `{user['bank']:,}` 🪙\n✅ شغالة", reply_markup=back2("bank"), parse_mode=ParseMode.MARKDOWN); return
-    # MAFIA MENU
-    if data == "mafia_menu":
-        kb = InlineKeyboardMarkup([[InlineKeyboardButton("🕵️ انضم للمافيا", callback_data="mafia_join"), InlineKeyboardButton("💰 اسرق", callback_data="mafia_steal")], [InlineKeyboardButton("🚔 سجن", callback_data="mafia_jail"), InlineKeyboardButton("⚖️ محكمة", callback_data="mafia_court")], [InlineKeyboardButton("🔙 رجوع", callback_data="back")]])
-        await q.edit_message_text(f"🕵️ **عالم المافيا**\n\nمطلوب: `{user.get('wanted',0)}`\nمافيا: `{user.get('mafia') or 'مفيش'}`\n\nاسرق، اهرب، ولو اتمسكت هتدخل السجن!", reply_markup=kb, parse_mode=ParseMode.MARKDOWN); return
-    if data == "mafia_join":
-        if user.get("mafia"): await q.edit_message_text(f"✅ انت في مافيا {user['mafia']} خلاص", reply_markup=back2("mafia_menu")); return
-        user["mafia"] = random.choice(["🏴 مافيا TRAN", "🦅 مافيا الصقور", "🐍 مافيا الثعابين"]); await q.edit_message_text(f"🕵️ **انضميت لـ {user['mafia']}!**\n🎁 خدت +200 🪙 هدية انضمام", reply_markup=back2("mafia_menu")); add_coins(uid, 200, "مافيا"); return
-    if data == "mafia_steal":
-        victim = random.randint(100000, 999999)
-        stolen = random.randint(20, 200)
-        if random.random() < 0.3: user["wanted"] += 1; await q.edit_message_text(f"🚔 **اتمسكت!**\n\nالبوليس مسكك وانت بتسرق!\nمطلوب: {user['wanted']}\nادفع كفالة 200 🪙 او ادخل السجن بـ `/jail`", reply_markup=back2("mafia_menu")); return
-        add_coins(uid, stolen, "سرقة"); await q.edit_message_text(f"🕵️ **سرقت! +{stolen} 🪙**\n🪙 {user['coins']}\n😎 محدش شافك", reply_markup=back2("mafia_menu")); return
-    if data == "mafia_jail":
-        if uid in jailed: await q.edit_message_text("🚔 انت في السجن! اكتب `/free` عشان تطلع بـ 200 🪙", reply_markup=back2("mafia_menu")); return
-        jailed[uid] = True; await q.edit_message_text("🚔 **دخلت السجن!**\nاكتب `/free` عشان تطلع", reply_markup=back2("mafia_menu")); return
-    if data == "mafia_court":
-        if user.get("wanted", 0) == 0: await q.edit_message_text("⚖️ انت بريء! معلكش حاجة", reply_markup=back2("mafia_menu")); return
-        if random.random() < 0.5: user["wanted"] = 0; await q.edit_message_text("⚖️ **براءة!** 🎉\nالقاضي طلعك براءة، انت حر!", reply_markup=back2("mafia_menu"))
-        else: await q.edit_message_text(f"⚖️ **ادانة!**\nعليك غرامة 300 🪙\nمطلوب: {user['wanted']}", reply_markup=back2("mafia_menu")); return
     # GAMES
     if data == "games":
         kb = InlineKeyboardMarkup([[InlineKeyboardButton("🎲 نرد", callback_data="g_dice"), InlineKeyboardButton("🪙 ملك وكتابة", callback_data="g_flip")], [InlineKeyboardButton("🎰 سلوت", callback_data="g_slot"), InlineKeyboardButton("🚀 صاروخ", callback_data="g_crash")], [InlineKeyboardButton("✂️ حجر ورقة مقص", callback_data="g_rps"), InlineKeyboardButton("🔢 تخمين رقم", callback_data="g_guess")], [InlineKeyboardButton("🔙 رجوع", callback_data="back")]])
@@ -168,7 +143,7 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await q.edit_message_text(f"انت {mp[me]} vs بوت {mp[bot]}\n{txt}\n🪙 {user['coins']}", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("✂️ تاني", callback_data="g_rps")], [InlineKeyboardButton("🔙", callback_data="games")]])); return
     if data == "g_guess": context.user_data["guess"] = random.randint(1, 5); await q.edit_message_text("🔢 خمن رقم من 1 لـ 5، ابعته في رسالة", reply_markup=back2("games")); return
     if data == "wheel": p = random.choice([10, 20, 0, 50, 5, 100, 0, 30]); add_coins(uid, p, "عجلة"); await q.edit_message_text(f"🎡 كسبت +{p} 🪙\n🪙 {user['coins']}", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🎡 تاني", callback_data="wheel")], [InlineKeyboardButton("🔙", callback_data="back")]])); return
-    # SHOP / TASKS / WALLET
+    # SHOP / TASKS / WALLET / ETC
     if data == "shop":
         kb = InlineKeyboardMarkup([[InlineKeyboardButton("🪙 500 كوين - 25ج", callback_data="buy_500")], [InlineKeyboardButton("💰 1000 كوين - 45ج", callback_data="buy_1000")], [InlineKeyboardButton("💎 5000 كوين - 180ج", callback_data="buy_5000")], [InlineKeyboardButton("👑 10000 كوين VIP - 320ج", callback_data="buy_10000")], [InlineKeyboardButton("🔙 رجوع", callback_data="back")]])
         await q.edit_message_text("🛒 **المتجر**\nاختار عرض، الدفع فودافون كاش", reply_markup=kb); return
@@ -189,7 +164,7 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if tid in user["tasks"]: await q.edit_message_text("✅ عملتها النهاردة", reply_markup=back()); return
         rewards = {"daily": 20, "join": 30, "share": 25}; user["tasks"].append(tid); add_coins(uid, rewards.get(tid, 20), "مهمة")
         await q.edit_message_text(f"🎉 +{rewards.get(tid, 20)} 🪙\n🪙 {user['coins']}", reply_markup=back()); return
-    if data == "wallet": await q.edit_message_text(f"👛 **محفظتي**\n🪙 كوينز: `{user['coins']:,}`\n🏦 بنك: `{user['bank']:,}`\n💰 رصيد: `{user['balance']} ج`\n🏅 {lvl_name(user['coins'])}\n📊 نقاط: `{user['points']}`\n🎨 سكن: {user.get('skin')}\n🏷️ لقب: {user.get('title') or 'مفيش'}", reply_markup=back(), parse_mode=ParseMode.MARKDOWN); return
+    if data == "wallet": await q.edit_message_text(f"👛 **محفظتي**\n🪙 كوينز: `{user['coins']:,}`\n🏦 بنك: `{user['bank']:,}`\n💰 رصيد: `{user['balance']} ج`\n🏅 {lvl_name(user['coins'])}\n📊 نقاط: `{user['points']}`", reply_markup=back(), parse_mode=ParseMode.MARKDOWN); return
     if data == "ref":
         link = f"https://t.me/{context.bot.username}?start={uid}"
         await q.edit_message_text(f"👥 **دعوة**\nكل صاحب +50 🪙\nدعيت: `{user['ref']}`\n\nلينكك:\n`{link}`", reply_markup=back(), parse_mode=ParseMode.MARKDOWN); return
@@ -197,18 +172,18 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         top = sorted(users.values(), key=lambda x: x["coins"], reverse=True)[:10]; txt = "🏅 **توب 10**\n\n"; medals = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"]
         for i, u2 in enumerate(top): txt += f"{medals[i]} {u2.get('name','')} - {u2['coins']:,} 🪙{' 👈 انت' if u2['id']==uid else ''}\n"
         await q.edit_message_text(txt, reply_markup=back()); return
-    if data == "profile": await q.edit_message_text(f"👤 **بروفايلك**\n\n👤 {q.from_user.first_name} {user.get('title','')}\n🆔 `{uid}`\n🏅 {lvl_name(user['coins'])}\n🪙 {user['coins']:,} | 🏦 {user['bank']:,}\n🎨 سكن: {user.get('skin')}\n🕵️ مافيا: {user.get('mafia') or 'مفيش'}\n💍 متجوز: {'✅' if uid in marriages else '❌'}\n🎮 لعبت {user['games']} | ✅ كسبت {user['wins']}\n📅 انضميت {user['joined']}", reply_markup=back(), parse_mode=ParseMode.MARKDOWN); return
-    if data == "info": await q.edit_message_text("ℹ️ **TRAN v4.0 - FINAL COMPLETE**\n🎮 العاب + 🏦 بنك + 🛒 متجر + 👑 اونر + 🕵️ مافيا\n💍 جواز + 🏰 كلان + 📈 تداول + 🤖 ذكاء اصطناعي\n150+ ميزة شغالة 100% ✅\nالدعم: @tran_support", reply_markup=back()); return
+    if data == "profile": await q.edit_message_text(f"👤 **بروفايلك**\n\n👤 {q.from_user.first_name}\n🆔 `{uid}`\n🏅 {lvl_name(user['coins'])}\n🪙 {user['coins']:,} | 🏦 {user['bank']:,}\n🎮 لعبت {user['games']} | ✅ كسبت {user['wins']}\n📅 انضميت {user['joined']}", reply_markup=back(), parse_mode=ParseMode.MARKDOWN); return
+    if data == "info": await q.edit_message_text("ℹ️ **TRAN v3.0 - FINAL**\n🎮 العاب + 🏦 بنك + 🛒 متجر + 👑 اونر\n150 ميزة شغالة 100% ✅\nالدعم: @tran_support", reply_markup=back()); return
     if data == "support": context.user_data["wait_support"] = True; await q.edit_message_text("🆘 اكتب مشكلتك دلوقتي في رسالة", reply_markup=back()); return
     if data == "gift": context.user_data["wait_code"] = True; await q.edit_message_text("🎁 اكتب الكود، زي `TRAN100`", reply_markup=back()); return
     # OWNER
     if data == "owner":
         if uid != OWNER_ID: await q.edit_message_text("⛔ مش الاونر", reply_markup=back()); return
         kb = InlineKeyboardMarkup([[InlineKeyboardButton("📊 احصائيات", callback_data="o_stats"), InlineKeyboardButton("📢 اذاعة", callback_data="o_broadcast")], [InlineKeyboardButton("🪙 اضف كوينز", callback_data="o_add"), InlineKeyboardButton("➖ خصم كوينز", callback_data="o_remove")], [InlineKeyboardButton("⛔ حظر / فك", callback_data="o_ban"), InlineKeyboardButton("🎁 اعمل كود", callback_data="o_code")], [InlineKeyboardButton("👤 شوف يوزر", callback_data="o_view"), InlineKeyboardButton("🔄 تصفير", callback_data="o_reset")], [InlineKeyboardButton("🔙 رجوع", callback_data="back")]])
-        await q.edit_message_text(f"👑 **لوحة الاونر** 👑\n\nاهلا يا اونر 🔥\n👥 مستخدمين: `{len(users)}`\n🪙 اجمالي: `{sum(u['coins'] for u in users.values()):,}`\n🏦 في البنك: `{sum(u['bank'] for u in users.values()):,}`", reply_markup=kb, parse_mode=ParseMode.MARKDOWN); return
+        await q.edit_message_text(f"👑 **لوحة الاونر** 👑\n\nاهلا يا اونر 🔥\n👥 مستخدمين: `{len(users)}`\n🪙 اجمالي: `{sum(u['coins'] for u in users.values()):,}`", reply_markup=kb, parse_mode=ParseMode.MARKDOWN); return
     if data == "o_stats":
         if uid != OWNER_ID: return
-        await q.edit_message_text(f"📊 **احصائيات**\n👥 {len(users)} مستخدم\n🪙 {sum(u['coins'] for u in users.values()):,} كوين\n🏦 {sum(u['bank'] for u in users.values()):,} في البنك\n🎮 {sum(u['games'] for u in users.values())} لعبة\n🕵️ مافيا: {len([u for u in users.values() if u.get('mafia')])}", reply_markup=back()); return
+        await q.edit_message_text(f"📊 **احصائيات**\n👥 {len(users)} مستخدم\n🪙 {sum(u['coins'] for u in users.values()):,} كوين\n🏦 {sum(u['bank'] for u in users.values()):,} في البنك\n🎮 {sum(u['games'] for u in users.values())} لعبة", reply_markup=back()); return
     if data == "o_broadcast":
         if uid != OWNER_ID: return
         context.user_data["wait_broadcast"] = True; await q.edit_message_text("📢 ابعت رسالة الاذاعة دلوقتي", reply_markup=back()); return
@@ -231,7 +206,7 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if uid != OWNER_ID: return
         await q.edit_message_text("⚠️ اكتب `تصفير` في الشات لو متأكد", reply_markup=back()); return
 
-# ================= COMMANDS =================
+# ===== COMMANDS - 150 FEATURES =====
 async def cmd_mine(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id; u = get_user(uid); now = time.time()
     if now - mining_last.get(uid, 0) < 3600: await update.message.reply_text(f"⛏️ لسه بتعدن! فاضل {int((3600-(now-mining_last.get(uid,0)))/60)} دقيقة"); return
@@ -248,10 +223,10 @@ async def cmd_lottery(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id; u = get_user(uid)
     if uid in lottery_players: await update.message.reply_text("✅ دخلت خلاص"); return
     if u["coins"] < 20: await update.message.reply_text("❌ محتاج 20 كوين"); return
-    u["coins"] -= 20; lottery_players.append(uid); await update.message.reply_text(f"🎰 **دخلت اليانصيب!**\n👥 {len(lottery_players)} لاعب\nاكتب /lottery_draw")
+    u["coins"] -= 20; lottery_players.append(uid); await update.message.reply_text(f"🎰 **دخلت اليانصيب!**\n👥 {len(lottery_players)} لاعب\nاكتب /lottery_draw عشان تسحب")
 async def cmd_lottery_draw(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if len(lottery_players) < 2: await update.message.reply_text("❌ محتاج 2 على الاقل"); return
-    w = random.choice(lottery_players); prize = len(lottery_players) * 20; add_coins(w, prize, "يانصيب"); await update.message.reply_text(f"🎉 **الفايز باليانصيب!**\n👤 {w}\n🏆 خد {prize} 🪙"); lottery_players.clear()
+    winner = random.choice(lottery_players); prize = len(lottery_players) * 20; add_coins(winner, prize, "يانصيب"); await update.message.reply_text(f"🎉 **الفايز باليانصيب!**\n👤 {winner}\n🏆 خد {prize} 🪙"); lottery_players.clear()
 async def cmd_marry(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id; u = get_user(uid)
     if uid in marriages: await update.message.reply_text(f"💍 انت متجوز {marriages[uid]} خلاص! ❤️"); return
@@ -273,7 +248,7 @@ async def cmd_divorce(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("💔 اتطلقت! بقيت سنجل 😂")
 async def cmd_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id
-    if not context.args: await update.message.reply_text("💬 اكتب: `/chat رسالتك`"); return
+    if not context.args: await update.message.reply_text("💬 اكتب: `/chat رسالتك`\nرسالتك هتوصل لكل اللاعبين!"); return
     msg = " ".join(context.args); sent = 0
     for x in list(users.keys()):
         if x == uid: continue
@@ -282,7 +257,7 @@ async def cmd_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(f"✅ وصلت لـ {sent} واحد 💬")
 async def cmd_trade(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for k in stock_prices: stock_prices[k] = max(10, stock_prices[k] + random.randint(-20, 30))
-    txt = "📈 **بورصة TRAN**\n\n" + "\n".join([f"📊 {k}: {v} 🪙" for k, v in stock_prices.items()]) + "\n\nاشتري: `/buy_stock TRAN 5`\nبيع: `/sell_stock TRAN 5`\nنصيحة: `/smart`"
+    txt = "📈 **بورصة TRAN**\n\n" + "\n".join([f"📊 {k}: {v} 🪙" for k, v in stock_prices.items()]) + "\n\nاشتري: `/buy_stock TRAN 5`\nبيع: `/sell_stock TRAN 5`"
     await update.message.reply_text(txt)
 async def cmd_buy_stock(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id; u = get_user(uid)
@@ -325,17 +300,17 @@ async def cmd_study(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id; u = get_user(uid); u["edu"] += 1; await update.message.reply_text(f"🎓 ذاكرت!\n📚 مستواك {u['edu']}\n{'🎉 وصلت 5! ارباحك اتضاعفت!' if u['edu']>=5 else ''}")
 async def cmd_battle(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id; u = get_user(uid)
-    if len(context.args) < 2: await update.message.reply_text("⚔️ اكتب: `/battle ID المبلغ`"); return
+    if len(context.args) < 2: await update.message.reply_text("⚔️ اكتب: `/battle ID المبلغ`\nمثال: `/battle 123456 100`"); return
     try:
         target = int(context.args[0]); bet = int(context.args[1])
         if u["coins"] < bet: await update.message.reply_text("❌ معكش كفاية"); return
         tu = get_user(target)
         if tu["coins"] < bet: await update.message.reply_text("❌ خصمك معهوش كفاية"); return
-        my = random.randint(1, 100) + u["level"] * 5 + u.get("power", 10); en = random.randint(1, 100) + tu["level"] * 5 + tu.get("power", 10)
+        my = random.randint(1, 100) + u["level"] * 5; en = random.randint(1, 100) + tu["level"] * 5
         if my > en: u["coins"] += bet; tu["coins"] -= bet; await update.message.reply_text(f"⚔️ **كسبت!** 🎉\n💪 {my} vs {en}\n🎁 خدت {bet} 🪙")
         elif my < en: u["coins"] -= bet; tu["coins"] += bet; await update.message.reply_text(f"⚔️ **خسرت** 😔\n💪 {my} vs {en}\nخسرت {bet} 🪙")
         else: await update.message.reply_text("🤝 تعادل!")
-    except: await update.message.reply_text("❌ اكتب صح")
+    except: await update.message.reply_text("❌ اكتب صح: `/battle ID المبلغ`")
 async def cmd_gift(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id; u = get_user(uid)
     if len(context.args) < 2: await update.message.reply_text("🎁 اكتب: `/gift ID المبلغ`"); return
@@ -364,7 +339,7 @@ async def cmd_race(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except: await update.message.reply_text("❌ اكتب: `/race 1`")
 async def cmd_roulette(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id; u = get_user(uid)
-    if not context.args: await update.message.reply_text("🎰 اكتب: `/roulette احمر` او `/roulette اسود`"); return
+    if not context.args: await update.message.reply_text("🎰 اكتب: `/roulette احمر` او `/roulette اسود`\nلو كسبت تاخد x2!"); return
     choice = context.args[0]; result = random.choice(["احمر", "اسود"])
     if u["coins"] < 50: await update.message.reply_text("❌ محتاج 50 🪙"); return
     if choice == result: add_coins(uid, 100, "روليت"); await update.message.reply_text(f"🎰 النتيجة: {result}\n🎉 كسبت! +100 🪙")
@@ -372,11 +347,10 @@ async def cmd_roulette(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def cmd_ai(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args: await update.message.reply_text("🤖 اكتب: `/ai سؤالك`\nمثال: `/ai ازاي اكسب كوينز؟`"); return
     q_text = " ".join(context.args).lower()
-    if "كوينز" in q_text or "اكسب" in q_text: ans = "💰 **عشان تكسب كوينز:**\n1- العب 🎮\n2- المهام 🎁\n3- ادعي صحابك 👥\n4- عدن ⛏️\n5- اشتغل 💼\n6- بيت وعربية 🏠🚗\n7- اسرق في المافيا 🕵️"
+    if "كوينز" in q_text or "اكسب" in q_text: ans = "💰 **عشان تكسب كوينز:**\n1- العب 🎮\n2- المهام 🎁\n3- ادعي صحابك 👥\n4- عدن ⛏️\n5- اشتغل 💼\n6- بيت وعربية 🏠🚗"
     elif "حب" in q_text or "جواز" in q_text: ans = "❤️ اتجوز بـ `/marry ID`\nهتاخد +100 كل يوم + هدية 200 🪙"
-    elif "ازيك" in q_text or "اهلا" in q_text: ans = f"اهلا بيك يا {update.effective_user.first_name}! 😊 عايز تلعب ولا تكسب ولا تتجوز ولا تسرق؟ 😂"
+    elif "ازيك" in q_text or "اهلا" in q_text: ans = f"اهلا بيك يا {update.effective_user.first_name}! 😊 عايز تلعب ولا تكسب ولا تتجوز؟ 😂"
     elif "بنك" in q_text: ans = "🏦 البنك: ايداع، سحب، قرض 500، فوايد 10% كل يوم!"
-    elif "مافيا" in q_text or "سرقة" in q_text: ans = "🕵️ المافيا: انضم بـ `/mafia`، اسرق بـ `/steal`، لو اتمسكت ادخل السجن واطلع بـ `/free`، ولو عايز براءة روح المحكمة `/court`"
     else: ans = f"🤖 فهمتك!\nسؤالك: {q_text}\nنصيحتي: العب كتير وادعي صحابك وهتبقى غني 🔥"
     await update.message.reply_text(ans)
 async def cmd_vip(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -404,7 +378,7 @@ async def cmd_skins(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if u["coins"] < s["price"]: await update.message.reply_text(f"❌ محتاج {s['price']} 🪙"); return
     u["coins"] -= s["price"]; u["skin"] = s["name"]; await update.message.reply_text(f"🎨 اشتريت {s['name']}! 🔥")
 async def cmd_quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    q = random.choice(quiz_q); context.user_data["quiz_ans"] = q["a"]
+    q = random.choice(quiz_questions); context.user_data["quiz_ans"] = q["a"]
     kb = InlineKeyboardMarkup([[InlineKeyboardButton(opt, callback_data=f"quiz_{opt}")] for opt in q["opts"]])
     await update.message.reply_text(f"🧠 **سؤال ذكاء**\n\n{q['q']}", reply_markup=kb)
 async def cmd_inventory(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -414,7 +388,6 @@ async def cmd_inventory(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if uid in cars: inv.append("🚗 عربية")
     if u.get("vip"): inv.append("👑 VIP")
     if uid in marriages: inv.append(f"💍 متجوز {marriages[uid]}")
-    if u.get("mafia"): inv.append(f"🕵️ {u['mafia']}")
     if not inv: inv.append("مخزونك فاضي")
     await update.message.reply_text("📦 **مخزونك**\n\n" + "\n".join(inv))
 async def cmd_analyze(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -454,87 +427,6 @@ async def cmd_auction(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if u["coins"] < amt: await update.message.reply_text("❌ معكش كفاية"); return
         u["coins"] -= amt; auctions.append({"seller": uid, "amount": amt}); await update.message.reply_text(f"🎲 عرضت {amt} 🪙 في المزاد!")
     except: await update.message.reply_text("❌ اكتب: `/auction المبلغ`")
-async def cmd_smart(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(f"🤖 **ذكاء التداول**\n\n{random.choice(['📈 اشتري TRAN دلوقتي، سعره هيطلع!', '📉 بيع GOLD، سعره هينزل!', '💎 BTC رخيص دلوقتي، اشتري بسرعة!', '🐶 DOGE هيطلع جامد، اشتري!', '⚠️ متشتريش دلوقتي، السوق خطر!'])}\n\nشوف الاسعار بـ `/trade`")
-async def cmd_challenge(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    ch = random.choice(["🎮 العب 3 مرات واكسب +100 🪙", "👥 ادعي 1 صاحب واكسب +150 🪙", "⛏️ عدن مرة واكسب +80 🪙", "💼 اشتغل مرة واكسب +120 🪙", "🎲 العب نرد 5 مرات واكسب +200 🪙"])
-    await update.message.reply_text(f"🎯 **تحدي اليوم**\n\n{ch}\n\nخلص التحدي وخد الجايزة!\nاكتب `/challenge_done` لما تخلصه")
-async def cmd_challenge_done(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid = update.effective_user.id; r = random.randint(80, 200); add_coins(uid, r, "تحدي"); await update.message.reply_text(f"🎉 **خلصت التحدي!**\n\n🎁 خدت +{r} 🪙\n🔥 عاش يا بطل!")
-async def cmd_word(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    w = random.choice(words); context.user_data["word"] = w; hint = w[0] + " _ " * (len(w)-1); await update.message.reply_text(f"🎮 **خمن الكلمة!**\n\nالكلمة: {hint}\nعدد الحروف: {len(w)}\nابعت تخمينك، لو صح تاخد +40 🪙")
-async def cmd_mafia(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid = update.effective_user.id; u = get_user(uid)
-    if not u.get("mafia"): u["mafia"] = random.choice(["🏴 مافيا TRAN", "🦅 مافيا الصقور", "🐍 مافيا الثعابين"]); add_coins(uid, 200, "مافيا"); await update.message.reply_text(f"🕵️ **انضميت لـ {u['mafia']}!**\n🎁 +200 🪙\n\nاسرق بـ `/steal`، اهرب بـ `/escape`، شوف سجنك بـ `/jail`")
-    else: await update.message.reply_text(f"🕵️ انت في {u['mafia']} خلاص\nاسرق بـ `/steal`")
-async def cmd_steal(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid = update.effective_user.id; u = get_user(uid)
-    if uid in jailed: await update.message.reply_text("🚔 انت في السجن! اكتب `/free` عشان تطلع"); return
-    if random.random() < 0.3: u["wanted"] += 1; jailed[uid] = True; await update.message.reply_text(f"🚔 **اتمسكت!**\n\nدخلت السجن!\nمطلوب: {u['wanted']}\nاطلع بـ `/free` (200 🪙) او روح المحكمة `/court`"); return
-    stolen = random.randint(50, 300); add_coins(uid, stolen, "سرقة"); await update.message.reply_text(f"🕵️ **سرقت! +{stolen} 🪙**\n😎 محدش شافك\n🪙 {u['coins']}")
-async def cmd_rob(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid = update.effective_user.id; u = get_user(uid)
-    if len(context.args) < 1: await update.message.reply_text("💰 اكتب: `/rob ID`\nمثال: `/rob 123456`"); return
-    try:
-        target = int(context.args[0]); tu = get_user(target)
-        if tu["coins"] < 50: await update.message.reply_text("❌ الضحية معهوش فلوس"); return
-        if random.random() < 0.4: u["wanted"] += 1; jailed[uid] = True; await update.message.reply_text("🚔 **اتمسكت وانت بتسرق صاحبك!**\nدخلت السجن! `/free` عشان تطلع"); return
-        stolen = random.randint(20, min(200, tu["coins"])); tu["coins"] -= stolen; u["coins"] += stolen; await update.message.reply_text(f"💰 **سرقت {stolen} 🪙 من {target}!**\n🪙 {u['coins']}")
-        try: await context.bot.send_message(target, f"😱 حد سرقك! خسرت {stolen} 🪙\nاللي سرقك: {update.effective_user.first_name}")
-        except: pass
-    except: await update.message.reply_text("❌ اكتب: `/rob ID`")
-async def cmd_jail(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid = update.effective_user.id
-    if uid in jailed: await update.message.reply_text("🚔 انت في السجن!\nاطلع بـ `/free` (200 🪙) او استنى المحكمة `/court`")
-    else: await update.message.reply_text("✅ انت حر! مش في السجن")
-async def cmd_free(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid = update.effective_user.id; u = get_user(uid)
-    if uid not in jailed: await update.message.reply_text("✅ انت مش في السجن اصلا"); return
-    if u["coins"] < 200: await update.message.reply_text("❌ الكفالة 200 🪙، معكش كفاية"); return
-    u["coins"] -= 200; jailed.pop(uid, None); await update.message.reply_text("🎉 **طلعت من السجن!**\nدفعت كفالة 200 🪙\nانت حر دلوقتي 😎")
-async def cmd_court(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid = update.effective_user.id; u = get_user(uid)
-    if u.get("wanted", 0) == 0: await update.message.reply_text("⚖️ انت بريء! معلكش حاجة"); return
-    if random.random() < 0.5: u["wanted"] = 0; jailed.pop(uid, None); await update.message.reply_text("⚖️ **براءة!** 🎉\nالقاضي طلعك براءة!")
-    else: await update.message.reply_text(f"⚖️ **ادانة!**\nعليك غرامة 300 🪙\nمطلوب: {u['wanted']}")
-async def cmd_escape(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid = update.effective_user.id
-    if uid not in jailed: await update.message.reply_text("✅ انت مش في السجن"); return
-    if random.random() < 0.5: jailed.pop(uid, None); await update.message.reply_text("🏃 **هربت من السجن!** 😎\nانت حر دلوقتي، بس البوليس بيدور عليك!")
-    else: await update.message.reply_text("🚔 **فشلت تهرب!**\nالحارس مسكك، حاول تاني")
-async def cmd_smuggle(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid = update.effective_user.id; u = get_user(uid)
-    if u["coins"] < 100: await update.message.reply_text("❌ التهريب محتاج 100 🪙 رأس مال"); return
-    if random.random() < 0.4: u["coins"] -= 100; u["wanted"] += 1; await update.message.reply_text("🚔 **اتمسكت وانت بتهرب!**\nخسرت 100 🪙 وبقيت مطلوب!"); return
-    profit = random.randint(200, 500); add_coins(uid, profit, "تهريب"); await update.message.reply_text(f"📦 **هربت بضاعة!**\n🎉 كسبت +{profit} 🪙\n🪙 {u['coins']}")
-async def cmd_badges(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid = update.effective_user.id; u = get_user(uid); badges = []
-    if u["games"] >= 10: badges.append("🎮 محترف العاب")
-    if u["ref"] >= 5: badges.append("👥 ملك الدعوات")
-    if u["coins"] >= 5000: badges.append("💰 غني")
-    if u.get("vip"): badges.append("👑 VIP")
-    if uid in marriages: badges.append("💍 متجوز")
-    if u.get("mafia"): badges.append("🕵️ مافيا")
-    if not badges: badges.append("مفيش اوسمة لسه، العب واكسب!")
-    await update.message.reply_text("🏅 **اوسمتك**\n\n" + "\n".join(badges))
-async def cmd_clanwar(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid = update.effective_user.id
-    if not clans: await update.message.reply_text("🏰 مفيش كلانات، اعمل كلان الاول بـ `/clan اسم`"); return
-    my = random.randint(50, 150); en = random.randint(50, 150)
-    if my > en: add_coins(uid, 300, "حرب كلان"); await update.message.reply_text(f"🔥 **كلانك كسب الحرب!** 🎉\n💪 {my} vs {en}\n🎁 +300 🪙")
-    else: await update.message.reply_text(f"😔 **كلانك خسر الحرب**\n💪 {my} vs {en}")
-async def cmd_golddice(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid = update.effective_user.id; u = get_user(uid)
-    if not u.get("vip"): await update.message.reply_text("❌ النرد الذهبي للـ VIP بس!\nاكتب `/vip`"); return
-    r = random.randint(1, 6)
-    if r >= 3: add_coins(uid, 100, "نرد ذهبي"); await update.message.reply_text(f"🎲✨ النرد الذهبي: {r}\n🎉 كسبت +100 🪙!")
-    else: add_coins(uid, -20, "نرد ذهبي"); await update.message.reply_text(f"🎲✨ النرد الذهبي: {r}\n😔 خسرت -20 🪙")
-async def cmd_randomgift(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not users: return
-    w = random.choice(list(users.keys())); prize = random.randint(50, 300); add_coins(w, prize, "هدية عشوائية")
-    try: await context.bot.send_message(w, f"🎁 **جاتلك هدية عشوائية!**\n🎉 +{prize} 🪙")
-    except: pass
-    await update.message.reply_text(f"🎁 هدية عشوائية راحت لـ {w} +{prize} 🪙")
 
 async def on_msg(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id; txt = (update.message.text or "").strip(); u = get_user(uid)
@@ -562,7 +454,7 @@ async def on_msg(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     if context.user_data.get("wait_view") and uid == OWNER_ID:
         context.user_data["wait_view"] = False
-        try: t = int(txt); uu = get_user(t); await update.message.reply_text(f"👤 {uu['name']}\n🆔 {t}\n🪙 {uu['coins']} | 🏦 {uu['bank']}\n⛔ محظور: {uu['banned']}\n🕵️ مافيا: {uu.get('mafia')}")
+        try: t = int(txt); uu = get_user(t); await update.message.reply_text(f"👤 {uu['name']}\n🆔 {t}\n🪙 {uu['coins']} | 🏦 {uu['bank']}\n⛔ محظور: {uu['banned']}")
         except: await update.message.reply_text("❌ مش موجود")
         return
     if context.user_data.get("wait_transfer"):
@@ -583,11 +475,6 @@ async def on_msg(update: Update, context: ContextTypes.DEFAULT_TYPE):
             else: add_coins(uid, -10, "تخمين"); await update.message.reply_text(f"😔 غلط! الرقم كان {n} -10 🪙")
         except: await update.message.reply_text("❌ ابعت رقم")
         return
-    if context.user_data.get("word") is not None:
-        w = context.user_data.pop("word")
-        if txt == w: add_coins(uid, 40, "كلمة"); await update.message.reply_text("🎉 صح! +40 🪙")
-        else: await update.message.reply_text(f"😔 غلط! الكلمة كانت {w}")
-        return
     if context.user_data.get("wait_code"):
         context.user_data["wait_code"] = False; code = txt.upper()
         if code in codes: r = codes.pop(code); add_coins(uid, r, "كود"); await update.message.reply_text(f"🎉 خدت +{r} 🪙")
@@ -600,7 +487,7 @@ async def on_msg(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     await update.message.reply_text("👋 اكتب /start", reply_markup=main_menu(uid))
 
-async def on_quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def on_callback_quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query; await q.answer()
     if q.data.startswith("quiz_"):
         ans = q.data.replace("quiz_", "")
@@ -611,11 +498,45 @@ def main():
     app = ApplicationBuilder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("owner", start))
-    for cmd, fn in [("mine", cmd_mine), ("work", cmd_work), ("box", cmd_box), ("lottery", cmd_lottery), ("lottery_draw", cmd_lottery_draw), ("marry", cmd_marry), ("divorce", cmd_divorce), ("chat", cmd_chat), ("trade", cmd_trade), ("buy_stock", cmd_buy_stock), ("sell_stock", cmd_sell_stock), ("pet", cmd_pet), ("house", cmd_house), ("car", cmd_car), ("gym", cmd_gym), ("study", cmd_study), ("battle", cmd_battle), ("gift", cmd_gift), ("clan", cmd_clan), ("race", cmd_race), ("roulette", cmd_roulette), ("ai", cmd_ai), ("vip", cmd_vip), ("streak", cmd_streak), ("tournament", cmd_tournament), ("tournament_win", cmd_tournament_win), ("skins", cmd_skins), ("quiz", cmd_quiz), ("inventory", cmd_inventory), ("analyze", cmd_analyze), ("horoscope", cmd_horoscope), ("title", cmd_title), ("insurance", cmd_insurance), ("league", cmd_league), ("note", cmd_note), ("auction", cmd_auction), ("smart", cmd_smart), ("challenge", cmd_challenge), ("challenge_done", cmd_challenge_done), ("word", cmd_word), ("mafia", cmd_mafia), ("steal", cmd_steal), ("rob", cmd_rob), ("jail", cmd_jail), ("free", cmd_free), ("court", cmd_court), ("escape", cmd_escape), ("smuggle", cmd_smuggle), ("badges", cmd_badges), ("clanwar", cmd_clanwar), ("golddice", cmd_golddice), ("randomgift", cmd_randomgift)]:
-        app.add_handler(CommandHandler(cmd, fn))
-    app.add_handler(CallbackQueryHandler(on_quiz, pattern="^quiz_"))
+    app.add_handler(CommandHandler("mine", cmd_mine))
+    app.add_handler(CommandHandler("work", cmd_work))
+    app.add_handler(CommandHandler("box", cmd_box))
+    app.add_handler(CommandHandler("lottery", cmd_lottery))
+    app.add_handler(CommandHandler("lottery_draw", cmd_lottery_draw))
+    app.add_handler(CommandHandler("marry", cmd_marry))
+    app.add_handler(CommandHandler("divorce", cmd_divorce))
+    app.add_handler(CommandHandler("chat", cmd_chat))
+    app.add_handler(CommandHandler("trade", cmd_trade))
+    app.add_handler(CommandHandler("buy_stock", cmd_buy_stock))
+    app.add_handler(CommandHandler("sell_stock", cmd_sell_stock))
+    app.add_handler(CommandHandler("pet", cmd_pet))
+    app.add_handler(CommandHandler("house", cmd_house))
+    app.add_handler(CommandHandler("car", cmd_car))
+    app.add_handler(CommandHandler("gym", cmd_gym))
+    app.add_handler(CommandHandler("study", cmd_study))
+    app.add_handler(CommandHandler("battle", cmd_battle))
+    app.add_handler(CommandHandler("gift", cmd_gift))
+    app.add_handler(CommandHandler("clan", cmd_clan))
+    app.add_handler(CommandHandler("race", cmd_race))
+    app.add_handler(CommandHandler("roulette", cmd_roulette))
+    app.add_handler(CommandHandler("ai", cmd_ai))
+    app.add_handler(CommandHandler("vip", cmd_vip))
+    app.add_handler(CommandHandler("streak", cmd_streak))
+    app.add_handler(CommandHandler("tournament", cmd_tournament))
+    app.add_handler(CommandHandler("tournament_win", cmd_tournament_win))
+    app.add_handler(CommandHandler("skins", cmd_skins))
+    app.add_handler(CommandHandler("quiz", cmd_quiz))
+    app.add_handler(CommandHandler("inventory", cmd_inventory))
+    app.add_handler(CommandHandler("analyze", cmd_analyze))
+    app.add_handler(CommandHandler("horoscope", cmd_horoscope))
+    app.add_handler(CommandHandler("title", cmd_title))
+    app.add_handler(CommandHandler("insurance", cmd_insurance))
+    app.add_handler(CommandHandler("league", cmd_league))
+    app.add_handler(CommandHandler("note", cmd_note))
+    app.add_handler(CommandHandler("auction", cmd_auction))
+    app.add_handler(CallbackQueryHandler(on_callback_quiz, pattern="^quiz_"))
     app.add_handler(CallbackQueryHandler(buttons))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, on_msg))
-    print("🔥 TRAN FINAL COMPLETE - ALL FEATURES STARTED")
+    print("🔥 TRAN FINAL 150 STARTED")
     app.run_polling()
 if __name__ == "__main__": main()
