@@ -1,18 +1,28 @@
-# TRAN BOT - FINAL FIXED v6.0 - OWNER 8188263997
-import os, random, time, logging, threading
-from datetime import datetime
+# TRAN BANK PRO - FULL FINAL + SUPPORT
+import os, random, time, threading
+from datetime import datetime, timedelta
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes, MessageHandler, filters
 from flask import Flask
 import requests
 
-logging.basicConfig(level=logging.INFO)
 TOKEN = os.environ.get("BOT_TOKEN")
 OWNER_ID = int(os.environ.get("OWNER_ID", "8188263997"))
 
+# ===== خدمة العملاء =====
+# 7125945857 = Mr cat
+# 7737976057 = تيتو
+SUPPORT_IDS = [8188263997, 7125945857, 7737976057]
+SUPPORT_INFO = {
+    7125945857: {"name": "Mr cat", "username": "@cat_max_10", "phone": "+20 115 5973454"},
+    7737976057: {"name": "تيتو", "username": "@MOON_104", "phone": "+20 111 8093542"},
+}
+def is_support(uid):
+    return int(uid) in SUPPORT_IDS
+
 app_flask = Flask(__name__)
 @app_flask.route('/')
-def home(): return "TRAN ALIVE"
+def home(): return "TRAN BANK PRO ALIVE"
 def run_flask():
     try: app_flask.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
     except: pass
@@ -27,66 +37,58 @@ def self_ping():
 threading.Thread(target=run_flask, daemon=True).start()
 threading.Thread(target=self_ping, daemon=True).start()
 
-users={}; codes={}; clans={}; marriages={}; pets={}; houses={}; cars={}; jailed={}
-stock_prices={"TRAN":100,"GOLD":500,"BTC":1000,"DOGE":50}
-lottery_players=[]; auctions=[]; mining_last={}; tournaments={"players":[],"prize":10000}
-skins_shop={"gold":{"name":"ذهبي","price":500},"diamond":{"name":"الماسي","price":1000},"fire":{"name":"ناري","price":800},"king":{"name":"ملكي","price":2000}}
-quiz_q=[{"q":"ايه عاصمة مصر؟","a":"القاهرة","opts":["القاهرة","الجيزة","اسكندرية"]},{"q":"كم عدد ايام السنة؟","a":"365","opts":["365","360","366"]},{"q":"ايه اكبر كوكب؟","a":"المشتري","opts":["المشتري","المريخ","زحل"]}]
-words=["اسد","قطة","كلب","سيارة","بيت","شمس","قمر","بحر"]
+users = {}
+checks = {}
+joint_accounts = {}
+tickets = {}
+ticket_counter = [100]
+
+RATES = {"EGP":1, "USD":50, "EUR":55, "GOLD":100, "BTC":2000}
+BILLS = {"نت":100, "كهربا":150, "شحن":50, "غاز":80, "مياه":60}
 
 def get_user(uid, username="", name=""):
     uid=int(uid)
     if uid not in users:
-        users[uid]={"id":uid,"username":username,"name":name,"coins":100,"balance":0,"bank":0,"points":0,"level":1,"ref":0,"banned":False,"vip":False,"loan":0,"games":0,"wins":0,"losses":0,"total_won":0,"tasks":[],"last_daily":"","joined":datetime.now().strftime("%Y-%m-%d"),"transactions":[],"stocks":{},"notes":[],"power":10,"edu":0,"streak":0,"skin":"عادي","title":"","insured":False,"mafia":"","wanted":0}
+        users[uid]={"id":uid,"username":username,"name":name,"cash":1000,"bank":0,"savings":0,"loan":0,"loan_due":0,"loan_left":0,"loan_total":0,"points":0,"banned":False,"vip":False,"insured":False,"credit_limit":1000,"credit_used":0,"card_num":f"5335 {random.randint(1000,9999)} {random.randint(1000,9999)} {random.randint(1000,9999)}","credit_num":f"4111 {random.randint(1000,9999)} {random.randint(1000,9999)} {random.randint(1000,9999)}","history":[],"last_interest":"","last_daily":"","certs":[],"deposits":[],"loan_history":[],"daily_withdraw":0,"daily_date":"","joint":None,"currency":"EGP"}
     return users[uid]
-def add_coins(uid, amt, reason=""):
-    u=get_user(uid); u["coins"]+=amt; u["points"]+=amt
-    if amt>0: u["total_won"]+=amt
-    u["transactions"].append(f"{reason} {amt:+}")
-    u["transactions"]=u["transactions"][-10:]
-    return u
-def lvl_name(c):
-    if c<500: return "مبتدئ"
-    if c<2000: return "محترف"
-    if c<5000: return "خبير"
-    if c<15000: return "اسطوري"
-    return "ملك TRAN"
+
+def add_h(uid, txt):
+    u=get_user(uid); u["history"].append(f"{datetime.now().strftime('%d/%m %H:%M')} - {txt}"); u["history"]=u["history"][-20:]
 
 def main_menu(uid):
     kb=[
-        [InlineKeyboardButton("العاب", callback_data="games"), InlineKeyboardButton("البنك", callback_data="bank")],
-        [InlineKeyboardButton("المتجر", callback_data="shop"), InlineKeyboardButton("المسابقات", callback_data="comp")],
-        [InlineKeyboardButton("المهام", callback_data="tasks"), InlineKeyboardButton("محفظتي", callback_data="wallet")],
-        [InlineKeyboardButton("دعوة", callback_data="ref"), InlineKeyboardButton("ترتيب", callback_data="rank")],
-        [InlineKeyboardButton("عجلة الحظ", callback_data="wheel"), InlineKeyboardButton("كود هدية", callback_data="gift")],
-        [InlineKeyboardButton("بروفايلي", callback_data="profile"), InlineKeyboardButton("الدعم", callback_data="support")],
-        [InlineKeyboardButton("مافيا", callback_data="mafia_menu"), InlineKeyboardButton("معلومات", callback_data="info")],
+        [InlineKeyboardButton("💰 رصيدي", callback_data="balance"), InlineKeyboardButton("🏦 البنك", callback_data="bank")],
+        [InlineKeyboardButton("💳 فيزا", callback_data="visa"), InlineKeyboardButton("📜 كشف حساب", callback_data="history")],
+        [InlineKeyboardButton("🏆 شهادات", callback_data="certs"), InlineKeyboardButton("💸 وديعة", callback_data="deposit_acc")],
+        [InlineKeyboardButton("💰 قرض", callback_data="loan"), InlineKeyboardButton("💳 كريديت", callback_data="credit")],
+        [InlineKeyboardButton("💱 عملات", callback_data="currency"), InlineKeyboardButton("🧾 فواتير", callback_data="bills")],
+        [InlineKeyboardButton("✉️ شيك", callback_data="check_menu"), InlineKeyboardButton("👨‍👩‍👧 حساب مشترك", callback_data="joint")],
+        [InlineKeyboardButton("🏧 ATM", callback_data="atm"), InlineKeyboardButton("🐷 تحويش", callback_data="saving")],
+        [InlineKeyboardButton("🎁 هدية يومية", callback_data="daily"), InlineKeyboardButton("🏆 الاغنياء", callback_data="top")],
+        [InlineKeyboardButton("☎️ خدمة العملاء", callback_data="support_menu"), InlineKeyboardButton("❓ اسئلة شائعة", callback_data="faq")],
+        [InlineKeyboardButton("🎲 حظ", callback_data="luck"), InlineKeyboardButton("🛡️ تأمين", callback_data="insurance")],
+        [InlineKeyboardButton("💎 VIP", callback_data="vip"), InlineKeyboardButton("🎫 تيكتاتي", callback_data="my_tickets")],
     ]
-    if int(uid)==OWNER_ID: kb.append([InlineKeyboardButton("لوحة الاونر", callback_data="owner")])
-    kb.append([InlineKeyboardButton("تحديث", callback_data="back")])
+    if is_support(uid):
+        kb.append([InlineKeyboardButton("🎧 لوحة خدمة العملاء", callback_data="support_panel")])
+    if int(uid)==OWNER_ID:
+        kb.append([InlineKeyboardButton("👑 لوحة الاونر", callback_data="owner")])
+    kb.append([InlineKeyboardButton("🔄 تحديث", callback_data="back")])
     return InlineKeyboardMarkup(kb)
-def back(): return InlineKeyboardMarkup([[InlineKeyboardButton("رجوع", callback_data="back")]])
-def back2(to): return InlineKeyboardMarkup([[InlineKeyboardButton("رجوع", callback_data=to)],[InlineKeyboardButton("القايمة", callback_data="back")]])
+
+def back(): return InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ رجوع", callback_data="back")]])
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         u=update.effective_user; user=get_user(u.id, u.username or "", u.first_name or "")
         if user["banned"]:
-            await update.message.reply_text("محظور"); return
-        if context.args:
-            try:
-                inv=int(context.args[0])
-                if inv!=u.id and inv in users and "ref_by" not in user:
-                    user["ref_by"]=inv; users[inv]["ref"]+=1; add_coins(inv,50,"دعوة")
-                    try: await context.bot.send_message(inv, f"{u.first_name} دخل من لينكك +50")
-                    except: pass
-            except: pass
-        txt=f"اهلا {u.first_name} في TRAN\n\nكوينز: {user['coins']}\nبنك: {user['bank']}\nرصيد: {user['balance']} ج\nمستواك: {lvl_name(user['coins'])}\nدعيت: {user['ref']}\nمافيا: {user.get('mafia') or 'مفيش'}\n\nاختار من القايمة تحت\n\nاوامر سريعة:\n/mine تعدين\n/work شغل\n/box صندوق\n/lottery يانصيب\n/marry جواز\n/trade تداول\n/chat شات\n/ai ذكاء اصطناعي\n/steal سرقة\n/mafia مافيا"
+            await update.message.reply_text("انت محظور من البنك"); return
+        txt=f"اهلا {u.first_name} في بنك TRAN PRO 🏦\n\n💰 كاش: {user['cash']}\n🏦 بنك: {user['bank']}\n🐷 تحويش: {user['savings']}\n📊 الكلي: {user['cash']+user['bank']+user['savings']}\n💸 قرض: {user['loan']} | متبقي {user['loan_left']} قسط\n💳 كريديت: {user['credit_used']}/{user['credit_limit']}\n⭐ نقاط: {user['points']}\n💱 عملة: {user['currency']}\n\nاختار من القايمة 👇\n\nاوامر سريعة:\n/deposit 100 - ايداع\n/withdraw 100 - سحب\n/transfer ID المبلغ - تحويل\n/balance - رصيد\n/visa - فيزا\n/top - الاغنياء"
         await update.message.reply_text(txt, reply_markup=main_menu(u.id))
     except Exception as e:
         print(f"START ERROR: {e}")
-        try: await update.message.reply_text("اهلا بيك في TRAN اختار من القايمة", reply_markup=main_menu(update.effective_user.id))
-        except Exception as e2: print(f"START ERROR2: {e2}")
+        try: await update.message.reply_text("اهلا في بنك TRAN PRO 🏦", reply_markup=main_menu(update.effective_user.id))
+        except: pass
 
 async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q=update.callback_query
@@ -95,112 +97,193 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid=q.from_user.id; user=get_user(uid, q.from_user.username or "", q.from_user.first_name or ""); data=q.data
     try:
         if data=="back":
-            await q.edit_message_text(f"TRAN\n\nكوينز: {user['coins']} | بنك: {user['bank']} | رصيد: {user['balance']} ج\nمستواك: {lvl_name(user['coins'])}", reply_markup=main_menu(uid)); return
+            await q.edit_message_text(f"بنك TRAN PRO 🏦\n\nكاش: {user['cash']} | بنك: {user['bank']} | تحويش: {user['savings']}\nالكلي: {user['cash']+user['bank']+user['savings']}\nقرض: {user['loan']} | كريديت: {user['credit_used']}/{user['credit_limit']}", reply_markup=main_menu(uid)); return
+        if data=="balance":
+            await q.edit_message_text(f"رصيدك 💰\n\nكاش: {user['cash']}\nبنك: {user['bank']}\nتحويش: {user['savings']}\nالكلي: {user['cash']+user['bank']+user['savings']}\nقرض: {user['loan']} | متبقي اقساط: {user['loan_left']}\nكريديت مستخدم: {user['credit_used']}/{user['credit_limit']}\nشهادات: {len(user['certs'])} | ودائع: {len(user['deposits'])}\nعملة: {user['currency']}\nنقاط: {user['points']}", reply_markup=back()); return
         if data=="bank":
-            kb=InlineKeyboardMarkup([[InlineKeyboardButton("ايداع", callback_data="bank_deposit"), InlineKeyboardButton("سحب", callback_data="bank_withdraw")],[InlineKeyboardButton("تحويل", callback_data="bank_transfer"), InlineKeyboardButton("قرض", callback_data="bank_loan")],[InlineKeyboardButton("فوايد", callback_data="bank_interest"), InlineKeyboardButton("كشف حساب", callback_data="bank_history")],[InlineKeyboardButton("فيزا TRAN", callback_data="bank_visa")],[InlineKeyboardButton("رجوع", callback_data="back")]])
-            await q.edit_message_text(f"بنك TRAN\n\nفي ايدك: {user['coins']}\nفي البنك: {user['bank']}\nقرض عليك: {user['loan']}\nتامين: {'نعم' if user.get('insured') else 'لا'}", reply_markup=kb); return
-        if data=="bank_deposit":
-            if user["coins"]>=100: user["coins"]-=100; user["bank"]+=100; await q.edit_message_text(f"ايداع تم!\nبنك: {user['bank']} | معاك: {user['coins']}", reply_markup=back2("bank"))
-            else: await q.edit_message_text("معكش 100 كوين", reply_markup=back2("bank")); return
-        if data=="bank_withdraw":
-            if user["bank"]>=100: user["bank"]-=100; user["coins"]+=100; await q.edit_message_text(f"سحبت 100\nمعاك: {user['coins']} | بنك: {user['bank']}", reply_markup=back2("bank"))
-            else: await q.edit_message_text("معكش في البنك", reply_markup=back2("bank")); return
-        if data=="bank_transfer": context.user_data["wait_transfer"]=True; await q.edit_message_text("اكتب: ID المبلغ\nمثال: 123456 100", reply_markup=back2("bank")); return
-        if data=="bank_loan":
-            if user["loan"]>0: await q.edit_message_text(f"عليك قرض {user['loan']}", reply_markup=back2("bank")); return
-            user["coins"]+=500; user["loan"]=550; await q.edit_message_text(f"خدت قرض 500\nهترجع 550\nمعاك: {user['coins']}", reply_markup=back2("bank")); return
-        if data=="bank_interest":
-            if user["bank"]<=0: await q.edit_message_text("حط فلوس في البنك الاول", reply_markup=back2("bank")); return
-            interest=int(user["bank"]*0.1); user["bank"]+=interest; await q.edit_message_text(f"فوايد +{interest}\nبنك: {user['bank']}", reply_markup=back2("bank")); return
-        if data=="bank_history": await q.edit_message_text("كشف حساب\n\n" + ("\n".join(user["transactions"][-10:]) or "مفيش حركات"), reply_markup=back2("bank")); return
-        if data=="bank_visa": await q.edit_message_text(f"فيزا TRAN\n\n{ q.from_user.first_name}\nرقم: 5335 {uid%10000:04d} 2026 8188\nرصيد: {user['bank']} \nشغالة", reply_markup=back2("bank")); return
-        if data=="mafia_menu":
-            kb=InlineKeyboardMarkup([[InlineKeyboardButton("انضم للمافيا", callback_data="mafia_join"), InlineKeyboardButton("اسرق", callback_data="mafia_steal")],[InlineKeyboardButton("سجن", callback_data="mafia_jail"), InlineKeyboardButton("محكمة", callback_data="mafia_court")],[InlineKeyboardButton("رجوع", callback_data="back")]])
-            await q.edit_message_text(f"عالم المافيا\n\nمطلوب: {user.get('wanted',0)}\nمافيا: {user.get('mafia') or 'مفيش'}\n\nاسرق، اهرب، ولو اتمسكت هتدخل السجن!", reply_markup=kb); return
-        if data=="mafia_join":
-            if user.get("mafia"): await q.edit_message_text(f"انت في مافيا {user['mafia']} خلاص", reply_markup=back2("mafia_menu")); return
-            user["mafia"]=random.choice(["مافيا TRAN","مافيا الصقور","مافيا الثعابين"]); add_coins(uid,200,"مافيا"); await q.edit_message_text(f"انضميت لـ {user['mafia']}!\nخدت +200", reply_markup=back2("mafia_menu")); return
-        if data=="mafia_steal":
-            if random.random()<0.3: user["wanted"]+=1; jailed[uid]=True; await q.edit_message_text(f"اتمسكت!\nمطلوب: {user['wanted']}\nاطلع بـ /free", reply_markup=back2("mafia_menu")); return
-            stolen=random.randint(20,200); add_coins(uid,stolen,"سرقة"); await q.edit_message_text(f"سرقت! +{stolen}\nمعاك: {user['coins']}", reply_markup=back2("mafia_menu")); return
-        if data=="mafia_jail": jailed[uid]=True; await q.edit_message_text("دخلت السجن!\nاطلع بـ /free", reply_markup=back2("mafia_menu")); return
-        if data=="mafia_court":
-            if user.get("wanted",0)==0: await q.edit_message_text("انت بريء!", reply_markup=back2("mafia_menu")); return
-            if random.random()<0.5: user["wanted"]=0; jailed.pop(uid,None); await q.edit_message_text("براءة!", reply_markup=back2("mafia_menu"))
-            else: await q.edit_message_text("ادانة! غرامة 300", reply_markup=back2("mafia_menu")); return
-        if data=="games":
-            kb=InlineKeyboardMarkup([[InlineKeyboardButton("نرد", callback_data="g_dice"), InlineKeyboardButton("ملك وكتابة", callback_data="g_flip")],[InlineKeyboardButton("سلوت", callback_data="g_slot"), InlineKeyboardButton("صاروخ", callback_data="g_crash")],[InlineKeyboardButton("حجر ورقة مقص", callback_data="g_rps"), InlineKeyboardButton("تخمين رقم", callback_data="g_guess")],[InlineKeyboardButton("رجوع", callback_data="back")]])
-            await q.edit_message_text("العاب - كل لعبة بتكسب كوينز", reply_markup=kb); return
-        if data=="g_dice":
-            r=random.randint(1,6); user["games"]+=1
-            if r>=4: add_coins(uid,25,"نرد"); txt=f"النرد: {r}\nكسبت +25"
-            else: add_coins(uid,-10,"نرد"); txt=f"النرد: {r}\nخسرت -10"
-            await q.edit_message_text(f"{txt}\nمعاك: {user['coins']}", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("تاني", callback_data="g_dice")],[InlineKeyboardButton("رجوع", callback_data="games")]])); return
-        if data=="g_flip": await q.edit_message_text("اختار:", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("ملك", callback_data="flip_k"), InlineKeyboardButton("كتابة", callback_data="flip_w")],[InlineKeyboardButton("رجوع", callback_data="games")]])); return
-        if data.startswith("flip_"):
-            res=random.choice(["k","w"]); choice="k" if data=="flip_k" else "w"
-            if choice==res: add_coins(uid,30,"ملك"); txt="صح! +30"
-            else: add_coins(uid,-10,"ملك"); txt="غلط! -10"
-            await q.edit_message_text(f"{txt}\nمعاك: {user['coins']}", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("تاني", callback_data="g_flip")],[InlineKeyboardButton("رجوع", callback_data="games")]])); return
-        if data=="g_slot":
-            e=["🍒","🍋","⭐","💎","7"]; r=[random.choice(e) for _ in range(3)]
-            if r[0]==r[1]==r[2]: add_coins(uid,100,"سلوت"); txt=f"{' '.join(r)}\nJACKPOT +100"
-            elif r[0]==r[1] or r[1]==r[2]: add_coins(uid,20,"سلوت"); txt=f"{' '.join(r)}\n+20"
-            else: add_coins(uid,-10,"سلوت"); txt=f"{' '.join(r)}\n-10"
-            await q.edit_message_text(f"{txt}\nمعاك: {user['coins']}", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("تاني", callback_data="g_slot")],[InlineKeyboardButton("رجوع", callback_data="games")]])); return
-        if data=="g_crash":
-            m=round(random.uniform(1,5),2)
-            if m>=2: w=int(20*m); add_coins(uid,w,"صاروخ"); txt=f"صاروخ x{m}\n+{w}"
-            else: add_coins(uid,-20,"صاروخ"); txt=f"انفجر x{m}\n-20"
-            await q.edit_message_text(f"{txt}\nمعاك: {user['coins']}", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("تاني", callback_data="g_crash")],[InlineKeyboardButton("رجوع", callback_data="games")]])); return
-        if data=="g_rps": await q.edit_message_text("اختار:", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("حجر", callback_data="rps_rock"), InlineKeyboardButton("ورقة", callback_data="rps_paper"), InlineKeyboardButton("مقص", callback_data="rps_scissors")],[InlineKeyboardButton("رجوع", callback_data="games")]])); return
-        if data.startswith("rps_"):
-            me=data.replace("rps_",""); bot=random.choice(["rock","paper","scissors"]); mp={"rock":"حجر","paper":"ورقة","scissors":"مقص"}
-            if me==bot: txt="تعادل!"
-            elif (me=="rock" and bot=="scissors") or (me=="paper" and bot=="rock") or (me=="scissors" and bot=="paper"): add_coins(uid,20,"حجر"); txt="كسبت +20"
-            else: add_coins(uid,-10,"حجر"); txt="خسرت -10"
-            await q.edit_message_text(f"انت {mp[me]} vs بوت {mp[bot]}\n{txt}\nمعاك: {user['coins']}", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("تاني", callback_data="g_rps")],[InlineKeyboardButton("رجوع", callback_data="games")]])); return
-        if data=="g_guess": context.user_data["guess"]=random.randint(1,5); await q.edit_message_text("خمن رقم من 1 لـ 5، ابعته في رسالة", reply_markup=back2("games")); return
-        if data=="wheel": p=random.choice([10,20,0,50,5,100,0,30]); add_coins(uid,p,"عجلة"); await q.edit_message_text(f"كسبت +{p}\nمعاك: {user['coins']}", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("تاني", callback_data="wheel")],[InlineKeyboardButton("رجوع", callback_data="back")]])); return
-        if data=="shop":
-            kb=InlineKeyboardMarkup([[InlineKeyboardButton("500 كوين - 25ج", callback_data="buy_500")],[InlineKeyboardButton("1000 كوين - 45ج", callback_data="buy_1000")],[InlineKeyboardButton("5000 كوين - 180ج", callback_data="buy_5000")],[InlineKeyboardButton("10000 كوين VIP - 320ج", callback_data="buy_10000")],[InlineKeyboardButton("رجوع", callback_data="back")]])
-            await q.edit_message_text("المتجر\nاختار عرض، الدفع فودافون كاش", reply_markup=kb); return
-        if data.startswith("buy_"):
-            amt=data.replace("buy_",""); await q.edit_message_text(f"طلبك {amt} كوين اتسجل!\nحول على 01000000000 وابعت سكرين للدعم", reply_markup=back())
-            try: await context.bot.send_message(OWNER_ID, f"طلب {amt} من {q.from_user.first_name} ({uid})")
-            except: pass
-            return
-        if data=="comp": await q.edit_message_text(f"مسابقة اليوم\nالجايزة 1000\nنقاطك: {user['points']}", reply_markup=back()); return
-        if data=="tasks":
+            kb=InlineKeyboardMarkup([[InlineKeyboardButton("ايداع 100", callback_data="dep_100"), InlineKeyboardButton("ايداع 500", callback_data="dep_500")],[InlineKeyboardButton("ايداع 1000", callback_data="dep_1000"), InlineKeyboardButton("ايداع الكل", callback_data="dep_all")],[InlineKeyboardButton("سحب 100", callback_data="wd_100"), InlineKeyboardButton("سحب 500", callback_data="wd_500")],[InlineKeyboardButton("سحب 1000", callback_data="wd_1000"), InlineKeyboardButton("سحب الكل", callback_data="wd_all")],[InlineKeyboardButton("تحويل", callback_data="do_transfer"), InlineKeyboardButton("فوايد", callback_data="interest")],[InlineKeyboardButton("رجوع", callback_data="back")]])
+            await q.edit_message_text(f"البنك 🏦\nكاش: {user['cash']} | بنك: {user['bank']}\nحد السحب اليومي: {user['daily_withdraw']}/5000", reply_markup=kb); return
+        if data.startswith("dep_"):
+            amt=user["cash"] if data=="dep_all" else int(data.replace("dep_",""))
+            if user["cash"]<amt or amt<=0: await q.edit_message_text("معكش كفاية", reply_markup=back()); return
+            user["cash"]-=amt; user["bank"]+=amt; user["points"]+=1; add_h(uid,f"ايداع +{amt}"); await q.edit_message_text(f"ايداع تم ✅\nبنك: {user['bank']} | كاش: {user['cash']}", reply_markup=back()); return
+        if data.startswith("wd_"):
+            amt=user["bank"] if data=="wd_all" else int(data.replace("wd_",""))
             today=datetime.now().strftime("%Y-%m-%d")
-            if user["last_daily"]!=today: user["tasks"]=[]; user["last_daily"]=today
-            kb=InlineKeyboardMarkup([[InlineKeyboardButton("مكافأة يومية +20", callback_data="task_daily")],[InlineKeyboardButton("انضم للقناة +30", callback_data="task_join")],[InlineKeyboardButton("شارك البوت +25", callback_data="task_share")],[InlineKeyboardButton("رجوع", callback_data="back")]])
-            await q.edit_message_text("مهام - خد كوينز ببلاش", reply_markup=kb); return
-        if data.startswith("task_"):
-            tid=data.replace("task_",""); today=datetime.now().strftime("%Y-%m-%d")
-            if user["last_daily"]!=today: user["tasks"]=[]; user["last_daily"]=today
-            if tid in user["tasks"]: await q.edit_message_text("عملتها النهاردة", reply_markup=back()); return
-            rewards={"daily":20,"join":30,"share":25}; user["tasks"].append(tid); add_coins(uid,rewards.get(tid,20),"مهمة")
-            await q.edit_message_text(f"+{rewards.get(tid,20)}\nمعاك: {user['coins']}", reply_markup=back()); return
-        if data=="wallet": await q.edit_message_text(f"محفظتي\nكوينز: {user['coins']}\nبنك: {user['bank']}\nرصيد: {user['balance']} ج\nمستواك: {lvl_name(user['coins'])}\nنقاط: {user['points']}\nسكن: {user.get('skin')}\nلقب: {user.get('title') or 'مفيش'}", reply_markup=back()); return
-        if data=="ref":
-            link=f"https://t.me/{context.bot.username}?start={uid}"
-            await q.edit_message_text(f"دعوة\nكل صاحب +50\nدعيت: {user['ref']}\n\nلينكك:\n{link}", reply_markup=back()); return
-        if data=="rank":
-            top=sorted(users.values(), key=lambda x: x["coins"], reverse=True)[:10]; txt="توب 10\n\n"; medals=["1","2","3","4","5","6","7","8","9","10"]
-            for i,u2 in enumerate(top): txt+=f"{medals[i]}- {u2.get('name','')} - {u2['coins']} {'انت' if u2['id']==uid else ''}\n"
+            if user["daily_date"]!=today: user["daily_date"]=today; user["daily_withdraw"]=0
+            if user["daily_withdraw"]+amt>5000: await q.edit_message_text(f"عديت حد السحب اليومي 5000\nسحبت النهاردة: {user['daily_withdraw']}", reply_markup=back()); return
+            if user["bank"]<amt: await q.edit_message_text("معكش في البنك", reply_markup=back()); return
+            user["bank"]-=amt; user["cash"]+=amt; user["daily_withdraw"]+=amt; add_h(uid,f"سحب -{amt}"); await q.edit_message_text(f"سحب تم ✅\nكاش: {user['cash']} | بنك: {user['bank']}\nسحبت النهاردة: {user['daily_withdraw']}/5000", reply_markup=back()); return
+        if data=="do_transfer": context.user_data["wait_transfer"]=True; await q.edit_message_text("اكتب: ID المبلغ\nمثال: 123456 100", reply_markup=back()); return
+        if data=="interest":
+            today=datetime.now().strftime("%Y-%m-%d")
+            if user["last_interest"]==today: await q.edit_message_text("خدت فوايدك النهاردة", reply_markup=back()); return
+            if user["bank"]<=0 and user["savings"]<=0: await q.edit_message_text("حط فلوس في البنك الاول", reply_markup=back()); return
+            user["last_interest"]=today; ib=int(user["bank"]*0.10); isv=int(user["savings"]*0.20)
+            user["bank"]+=ib; user["savings"]+=isv; add_h(uid,f"فوايد مركبة +{ib+isv}"); await q.edit_message_text(f"فوايد مركبة 📈\nبنك +{ib} | تحويش +{isv}\nالكلي +{ib+isv}\nبنك: {user['bank']}", reply_markup=back()); return
+        if data=="visa": await q.edit_message_text(f"فيزا TRAN 💳\n\n{ q.from_user.first_name}\n{user['card_num']}\nانتهاء: 12/30 | CVV: {random.randint(100,999)}\nرصيد: {user['bank']}\nنوع: {'VIP 💎' if user['vip'] else 'عادية'}", reply_markup=back()); return
+        if data=="history": await q.edit_message_text("كشف حساب 📜\n\n"+("\n".join(user["history"][-15:]) or "مفيش حركات"), reply_markup=back()); return
+        if data=="certs":
+            kb=InlineKeyboardMarkup([[InlineKeyboardButton("شهادة 500 - 7 ايام = 750", callback_data="cert_500")],[InlineKeyboardButton("شهادة 1000 - 7 ايام = 1500", callback_data="cert_1000")],[InlineKeyboardButton("شهادة 5000 - 7 ايام = 8000", callback_data="cert_5000")],[InlineKeyboardButton("فك شهاداتي", callback_data="cert_claim")],[InlineKeyboardButton("رجوع", callback_data="back")]])
+            await q.edit_message_text(f"شهادات ادخار 🏆\n\nعندك: {len(user['certs'])} شهادة\nحط فلوس وخدها بفايدة كبيرة بعد 7 ايام", reply_markup=kb); return
+        if data.startswith("cert_") and data!="cert_claim":
+            amt=int(data.replace("cert_",""))
+            if user["bank"]<amt: await q.edit_message_text("معكش في البنك كفاية", reply_markup=back()); return
+            user["bank"]-=amt; user["certs"].append({"amt":amt,"until":datetime.now()+timedelta(days=7),"reward":int(amt*1.5)}); add_h(uid,f"شهادة -{amt}"); await q.edit_message_text(f"عملت شهادة {amt} ✅\nهتاخد {int(amt*1.5)} بعد 7 ايام", reply_markup=back()); return
+        if data=="cert_claim":
+            now=datetime.now(); claimed=0; new_certs=[]
+            for c in user["certs"]:
+                if now>=c["until"]: claimed+=c["reward"]
+                else: new_certs.append(c)
+            user["certs"]=new_certs
+            if claimed==0: await q.edit_message_text("لسه مفيش شهادة خلصت، استنى 7 ايام", reply_markup=back()); return
+            user["bank"]+=claimed; add_h(uid,f"فك شهادة +{claimed}"); await q.edit_message_text(f"فكيت شهاداتك ✅\nخدت +{claimed}\nبنك: {user['bank']}", reply_markup=back()); return
+        if data=="deposit_acc":
+            kb=InlineKeyboardMarkup([[InlineKeyboardButton("وديعة 1000 - 3 ايام = 1300", callback_data="depacc_1000")],[InlineKeyboardButton("وديعة 5000 - 3 ايام = 7000", callback_data="depacc_5000")],[InlineKeyboardButton("فك وديعتي", callback_data="depacc_claim")],[InlineKeyboardButton("رجوع", callback_data="back")]])
+            await q.edit_message_text(f"وديعة ثابتة 💸\nعندك: {len(user['deposits'])} وديعة\nالوديعة بتتقفل 3 ايام", reply_markup=kb); return
+        if data.startswith("depacc_") and data!="depacc_claim":
+            amt=int(data.replace("depacc_",""))
+            if user["bank"]<amt: await q.edit_message_text("معكش في البنك", reply_markup=back()); return
+            user["bank"]-=amt; user["deposits"].append({"amt":amt,"until":datetime.now()+timedelta(days=3),"reward":int(amt*1.3)}); add_h(uid,f"وديعة -{amt}"); await q.edit_message_text(f"عملت وديعة {amt} ✅\nهتاخد {int(amt*1.3)} بعد 3 ايام", reply_markup=back()); return
+        if data=="depacc_claim":
+            now=datetime.now(); claimed=0; new_d=[]
+            for d in user["deposits"]:
+                if now>=d["until"]: claimed+=d["reward"]
+                else: new_d.append(d)
+            user["deposits"]=new_d
+            if claimed==0: await q.edit_message_text("لسه الوديعة مخلصتش، استنى 3 ايام", reply_markup=back()); return
+            user["bank"]+=claimed; add_h(uid,f"فك وديعة +{claimed}"); await q.edit_message_text(f"فكيت وديعتك +{claimed} ✅\nبنك: {user['bank']}", reply_markup=back()); return
+        if data=="loan":
+            kb=InlineKeyboardMarkup([[InlineKeyboardButton("قرض 500 - قسط 183 x3", callback_data="loan_500")],[InlineKeyboardButton("قرض 1000 - قسط 366 x3", callback_data="loan_1000")],[InlineKeyboardButton("قرض 5000 - قسط 1833 x3", callback_data="loan_5000")],[InlineKeyboardButton("سدد قسط", callback_data="loan_pay")],[InlineKeyboardButton("سدد الكل", callback_data="loan_payall")],[InlineKeyboardButton("سجل قروضي", callback_data="loan_hist")],[InlineKeyboardButton("رجوع", callback_data="back")]])
+            await q.edit_message_text(f"القروض 💸\nعليك: {user['loan']}\nمتبقي اقساط: {user['loan_left']} / {user['loan_total']}\nالقسط: {user['loan_due']}\nالقرض بيتقسط على 3 دفعات", reply_markup=kb); return
+        if data.startswith("loan_") and data not in ["loan_pay","loan_payall","loan_hist"]:
+            amt=int(data.replace("loan_",""))
+            if user["loan"]>0: await q.edit_message_text("عليك قرض سدده الاول", reply_markup=back()); return
+            total=int(amt*1.1); user["cash"]+=amt; user["loan"]=amt; user["loan_total"]=total; user["loan_left"]=3; user["loan_due"]=total//3; add_h(uid,f"قرض +{amt}"); await q.edit_message_text(f"خدت قرض {amt} ✅\nهترجع {total} على 3 اقساط\nكل قسط {total//3}", reply_markup=back()); return
+        if data=="loan_pay":
+            if user["loan"]<=0: await q.edit_message_text("معلكش قروض", reply_markup=back()); return
+            if user["cash"]<user["loan_due"]: await q.edit_message_text(f"محتاج {user['loan_due']} للقسط", reply_markup=back()); return
+            user["cash"]-=user["loan_due"]; user["loan_left"]-=1; add_h(uid,f"سدد قسط -{user['loan_due']}")
+            if user["loan_left"]<=0: user["loan_history"].append(f"قرض {user['loan']} اتسدد"); user["loan"]=0; user["loan_due"]=0; user["loan_total"]=0; await q.edit_message_text("سددت القرض كله! انت حر ✅", reply_markup=back()); return
+            await q.edit_message_text(f"سددت قسط ✅\nمتبقي {user['loan_left']} اقساط", reply_markup=back()); return
+        if data=="loan_payall":
+            if user["loan"]<=0: await q.edit_message_text("معلكش قروض", reply_markup=back()); return
+            rest=user["loan_due"]*user["loan_left"]
+            if user["cash"]<rest: await q.edit_message_text(f"محتاج {rest} عشان تسدد الكل", reply_markup=back()); return
+            user["cash"]-=rest; user["loan_history"].append(f"قرض {user['loan']} اتسدد كله"); user["loan"]=0; user["loan_due"]=0; user["loan_total"]=0; user["loan_left"]=0; add_h(uid,f"سدد قرض كله -{rest}"); await q.edit_message_text("سددت القرض كله! ✅", reply_markup=back()); return
+        if data=="loan_hist": await q.edit_message_text("سجل قروضك 📜\n\n"+("\n".join(user["loan_history"]) or "مفيش قروض قديمة"), reply_markup=back()); return
+        if data=="credit":
+            kb=InlineKeyboardMarkup([[InlineKeyboardButton("اشتري بالكريديت 100", callback_data="credit_use_100"), InlineKeyboardButton("اشتري 500", callback_data="credit_use_500")],[InlineKeyboardButton("سدد الكريديت", callback_data="credit_pay")],[InlineKeyboardButton("رجوع", callback_data="back")]])
+            await q.edit_message_text(f"كريديت كارد 💳\n\n{user['credit_num']}\nالحد: {user['credit_limit']}\nمستخدم: {user['credit_used']}\nالمتاح: {user['credit_limit']-user['credit_used']}\n\nاشتري بالدين وسدد بعدين", reply_markup=kb); return
+        if data.startswith("credit_use_"):
+            amt=int(data.replace("credit_use_",""))
+            if user["credit_used"]+amt>user["credit_limit"]: await q.edit_message_text("عديت حد الكريديت", reply_markup=back()); return
+            user["credit_used"]+=amt; user["cash"]+=amt; add_h(uid,f"كريديت +{amt}"); await q.edit_message_text(f"اشتريت بالكريديت +{amt} ✅\nكاش: {user['cash']}", reply_markup=back()); return
+        if data=="credit_pay":
+            if user["credit_used"]<=0: await q.edit_message_text("معلكش كريديت", reply_markup=back()); return
+            if user["cash"]<user["credit_used"]: await q.edit_message_text(f"محتاج {user['credit_used']} عشان تسدد", reply_markup=back()); return
+            user["cash"]-=user["credit_used"]; add_h(uid,f"سدد كريديت -{user['credit_used']}"); user["credit_used"]=0; await q.edit_message_text("سددت الكريديت كله! ✅", reply_markup=back()); return
+        if data=="currency":
+            txt="تحويل عملات 💱\n\n"+"\n".join([f"{k} = {v} كوينز" for k,v in RATES.items()])+"\n\nاختار عملتك:"
+            kb=InlineKeyboardMarkup([[InlineKeyboardButton("EGP جنيه", callback_data="curr_EGP"), InlineKeyboardButton("USD دولار", callback_data="curr_USD")],[InlineKeyboardButton("EUR يورو", callback_data="curr_EUR"), InlineKeyboardButton("GOLD ذهب", callback_data="curr_GOLD")],[InlineKeyboardButton("BTC بيتكوين", callback_data="curr_BTC")],[InlineKeyboardButton("حول 100 كوينز لدولار", callback_data="convert_100")],[InlineKeyboardButton("رجوع", callback_data="back")]])
+            await q.edit_message_text(txt, reply_markup=kb); return
+        if data.startswith("curr_"): user["currency"]=data.replace("curr_",""); await q.edit_message_text(f"بقت عملتك: {user['currency']} ✅", reply_markup=back()); return
+        if data=="convert_100":
+            if user["cash"]<100: await q.edit_message_text("معكش 100", reply_markup=back()); return
+            user["cash"]-=100; usd=100//RATES["USD"]; user["cash"]+=usd*2; await q.edit_message_text(f"حولت 100 كوينز\nخدت {usd} دولار = {usd*2} كوينز بونص", reply_markup=back()); return
+        if data=="bills":
+            kb=InlineKeyboardMarkup([[InlineKeyboardButton(f"نت - {BILLS['نت']}", callback_data="bill_نت"), InlineKeyboardButton(f"كهربا - {BILLS['كهربا']}", callback_data="bill_كهربا")],[InlineKeyboardButton(f"شحن - {BILLS['شحن']}", callback_data="bill_شحن"), InlineKeyboardButton(f"غاز - {BILLS['غاز']}", callback_data="bill_غاز")],[InlineKeyboardButton(f"مياه - {BILLS['مياه']}", callback_data="bill_مياه")],[InlineKeyboardButton("رجوع", callback_data="back")]])
+            await q.edit_message_text(f"فواتير 🧾\nكاش: {user['cash']}\nادفع فاتورتك من هنا", reply_markup=kb); return
+        if data.startswith("bill_"):
+            b=data.replace("bill_",""); price=BILLS.get(b,100)
+            if user["cash"]<price: await q.edit_message_text("معكش كفاية", reply_markup=back()); return
+            user["cash"]-=price; user["points"]+=5; add_h(uid,f"فاتورة {b} -{price}"); await q.edit_message_text(f"دفعت فاتورة {b} -{price} ✅\nكاش: {user['cash']} | +5 نقاط", reply_markup=back()); return
+        if data=="check_menu":
+            kb=InlineKeyboardMarkup([[InlineKeyboardButton("اعمل شيك", callback_data="check_make"), InlineKeyboardButton("اصرف شيك", callback_data="check_claim")],[InlineKeyboardButton("رجوع", callback_data="back")]])
+            await q.edit_message_text("الشيكات ✉️\nاعمل شيك لصاحبك، يصرفه بعد يوم وياخد فلوسه", reply_markup=kb); return
+        if data=="check_make": context.user_data["wait_check"]=True; await q.edit_message_text("اكتب: ID المبلغ\nمثال: 123456 200", reply_markup=back()); return
+        if data=="check_claim":
+            found=False
+            for code, c in list(checks.items()):
+                if c["to"]==uid:
+                    if datetime.now()>=c["until"]: user["cash"]+=c["amt"]; add_h(uid,f"صرفت شيك +{c['amt']}"); del checks[code]; await q.edit_message_text(f"صرفت شيك +{c['amt']} ✅\nكاش: {user['cash']}", reply_markup=back()); found=True; break
+                    else: await q.edit_message_text("الشيك لسه ميعاده مجاش، استنى يوم", reply_markup=back()); found=True; break
+            if not found: await q.edit_message_text("مفيش شيكات ليك", reply_markup=back()); return
+        if data=="joint":
+            if user.get("joint"): await q.edit_message_text(f"عندك حساب مشترك\nرصيده: {joint_accounts.get(user['joint'],{}).get('balance',0)}", reply_markup=back()); return
+            context.user_data["wait_joint"]=True; await q.edit_message_text("اكتب ID صاحبك عشان تعملوا حساب مشترك", reply_markup=back()); return
+        if data=="atm":
+            kb=InlineKeyboardMarkup([[InlineKeyboardButton("اسحب من ATM 100 - عمولة 5", callback_data="atm_100"), InlineKeyboardButton("اسحب 500 - عمولة 10", callback_data="atm_500")],[InlineKeyboardButton("رجوع", callback_data="back")]])
+            await q.edit_message_text(f"ATM 🏧\nبنك: {user['bank']}\nالسحب من ATM بعمولة بس سريع", reply_markup=kb); return
+        if data.startswith("atm_"):
+            amt=int(data.replace("atm_","")); fee=5 if amt==100 else 10
+            if user["bank"]<amt+fee: await q.edit_message_text(f"محتاج {amt+fee} في البنك", reply_markup=back()); return
+            user["bank"]-=amt+fee; user["cash"]+=amt; add_h(uid,f"ATM سحب -{amt} عمولة -{fee}"); await q.edit_message_text(f"سحبت من ATM {amt} ✅\nعمولة {fee}\nكاش: {user['cash']}", reply_markup=back()); return
+        if data=="saving":
+            kb=InlineKeyboardMarkup([[InlineKeyboardButton("حوش 500", callback_data="save_500"), InlineKeyboardButton("حوش 1000", callback_data="save_1000")],[InlineKeyboardButton("فك التحويش", callback_data="unsave")],[InlineKeyboardButton("رجوع", callback_data="back")]])
+            await q.edit_message_text(f"تحويش 🐷\nحوشت: {user['savings']}\nبيجيب 20% كل يوم", reply_markup=kb); return
+        if data.startswith("save_"):
+            amt=int(data.replace("save_",""))
+            if user["bank"]<amt: await q.edit_message_text("معكش في البنك", reply_markup=back()); return
+            user["bank"]-=amt; user["savings"]+=amt; add_h(uid,f"تحويش +{amt}"); await q.edit_message_text(f"حوشت {amt} ✅\nتحويش: {user['savings']}", reply_markup=back()); return
+        if data=="unsave":
+            if user["savings"]<=0: await q.edit_message_text("مفيش تحويش", reply_markup=back()); return
+            amt=user["savings"]; user["savings"]=0; user["bank"]+=amt; await q.edit_message_text(f"فكيت {amt} للبنك ✅", reply_markup=back()); return
+        if data=="daily":
+            today=datetime.now().strftime("%Y-%m-%d")
+            if user["last_daily"]==today: await q.edit_message_text("خدتها النهاردة", reply_markup=back()); return
+            user["last_daily"]=today; prize=random.randint(20,100)*(2 if user["vip"] else 1); user["cash"]+=prize; add_h(uid,f"هدية +{prize}"); await q.edit_message_text(f"هديتك +{prize} 🎁\nكاش: {user['cash']}", reply_markup=back()); return
+        if data=="top":
+            top=sorted(users.values(), key=lambda x: x["cash"]+x["bank"]+x["savings"], reverse=True)[:10]; txt="اغني 10 🏆\n\n"
+            for i,u2 in enumerate(top): txt+=f"{i+1}- {u2.get('name','')} - {u2['cash']+u2['bank']+u2['savings']} {'<- انت' if u2['id']==uid else ''}\n"
             await q.edit_message_text(txt, reply_markup=back()); return
-        if data=="profile": await q.edit_message_text(f"بروفايلك\n\n{u.first_name} {user.get('title','')}\nID: {uid}\nمستواك: {lvl_name(user['coins'])}\nكوينز: {user['coins']} | بنك: {user['bank']}\nسكن: {user.get('skin')}\nمافيا: {user.get('mafia') or 'مفيش'}\nمتجوز: {'نعم' if uid in marriages else 'لا'}\nلعبت {user['games']} | كسبت {user['wins']}\nانضميت {user['joined']}", reply_markup=back()); return
-        if data=="info": await q.edit_message_text("TRAN v6.0 FINAL\nالعاب + بنك + متجر + اونر + مافيا\nجواز + كلان + تداول + ذكاء اصطناعي\n150+ ميزة شغالة", reply_markup=back()); return
-        if data=="support": context.user_data["wait_support"]=True; await q.edit_message_text("اكتب مشكلتك دلوقتي في رسالة", reply_markup=back()); return
-        if data=="gift": context.user_data["wait_code"]=True; await q.edit_message_text("اكتب الكود، زي TRAN100", reply_markup=back()); return
+        if data=="luck":
+            r=random.choice([0,10,20,50,100,0,30]); user["cash"]+=r; await q.edit_message_text(f"حظك +{r} 🎲\nكاش: {user['cash']}", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("تاني", callback_data="luck")],[InlineKeyboardButton("رجوع", callback_data="back")]])); return
+        if data=="insurance":
+            if user.get("insured"): await q.edit_message_text("انت مأمن خلاص 🛡️", reply_markup=back()); return
+            if user["cash"]<200: await q.edit_message_text("التأمين بـ 200", reply_markup=back()); return
+            user["cash"]-=200; user["insured"]=True; await q.edit_message_text("أمنت فلوسك! 🛡️", reply_markup=back()); return
+        if data=="vip":
+            if user["vip"]: await q.edit_message_text("انت VIP خلاص 💎", reply_markup=back()); return
+            if user["cash"]<1000: await q.edit_message_text("VIP بـ 1000\nبيضاعف كل هداياك x2", reply_markup=back()); return
+            user["cash"]-=1000; user["vip"]=True; await q.edit_message_text("بقيت VIP 💎\nكل هداياك x2!", reply_markup=back()); return
+        # ===== خدمة العملاء =====
+        if data=="support_menu":
+            kb=InlineKeyboardMarkup([[InlineKeyboardButton("👤 Mr cat - خدمة عملاء", url="https://t.me/cat_max_10")],[InlineKeyboardButton("👤 تيتو ™ - خدمة عملاء", url="https://t.me/MOON_104")],[InlineKeyboardButton("📩 اعمل تيكت جديد", callback_data="new_ticket")],[InlineKeyboardButton("🎫 تيكتاتي", callback_data="my_tickets")],[InlineKeyboardButton("⬅️ رجوع", callback_data="back")]])
+            await q.edit_message_text("خدمة عملاء بنك TRAN PRO 🏦\n\n👤 Mr cat\nيوزر: @cat_max_10\nجوال: +20 115 5973454\n\n👤 تيتو ™\nيوزر: @MOON_104\nجوال: +20 111 8093542\n\nدوس على اسم اي حد وكلمه على طول\nاو اعمل تيكت وهنرد عليك", reply_markup=kb); return
+        if data=="faq":
+            await q.edit_message_text("اسئلة شائعة ❓\n\n1- ازاي احول فلوس؟\n/start -> البنك -> تحويل -> اكتب ID والمبلغ\n\n2- ازاي اخد قرض؟\n/start -> قرض -> اختار قرض -> سدد على 3 اقساط\n\n3- ازاي افك شهادة؟\n/start -> شهادات -> فك شهاداتي بعد 7 ايام\n\n4- ازاي ابقى VIP؟\n/start -> VIP بـ 1000، كل هداياك x2\n\n5- فلوسي راحت فين؟\n/start -> كشف حساب هتشوف كل حركاتك\n\n6- عندي مشكلة؟\n/start -> خدمة العملاء -> كلم Mr cat او تيتو", reply_markup=back()); return
+        if data=="new_ticket":
+            context.user_data["wait_ticket"]=True; await q.edit_message_text("اكتب مشكلتك بالتفصيل\nمثال: حولت 500 لصاحبي وموصلوش", reply_markup=back()); return
+        if data=="my_tickets":
+            my=[f"#{tid} - {t['msg'][:40]}\nالحالة: {t['status']}\nالرد: {t.get('reply','لسه مفيش رد')}\n---" for tid,t in tickets.items() if t['user_id']==uid]
+            if not my: await q.edit_message_text("معندكش تيكتات لسه", reply_markup=back()); return
+            await q.edit_message_text("تيكتاتك 🎫\n\n"+"\n".join(my), reply_markup=back()); return
+        if data=="support_panel":
+            if not is_support(uid): await q.edit_message_text("انت مش خدمة عملاء", reply_markup=back()); return
+            open_t=len([t for t in tickets.values() if t['status']!='closed'])
+            kb=InlineKeyboardMarkup([[InlineKeyboardButton(f"🎫 التيكتات المفتوحة ({open_t})", callback_data="owner_tickets")],[InlineKeyboardButton("📊 احصائيات سريعة", callback_data="support_stats")],[InlineKeyboardButton("⬅️ رجوع", callback_data="back")]])
+            await q.edit_message_text(f"لوحة خدمة العملاء 🎧\n\nاهلا {q.from_user.first_name}\nتيكتات مفتوحة: {open_t}\nاجمالي تيكتات: {len(tickets)}\n\nعشان ترد:\n/reply رقم_التيكت ردك\nمثال: /reply 101 تم حل مشكلتك\n\nعشان تقفل:\n/close 101", reply_markup=kb); return
+        if data=="support_stats":
+            if not is_support(uid): return
+            await q.edit_message_text(f"احصائيات خدمة العملاء 🎧\n\nمستخدمين: {len(users)}\nتيكتات مفتوحة: {len([t for t in tickets.values() if t['status']!='closed'])}\nتيكتات اترد عليها: {len([t for t in tickets.values() if t['status']=='اترد عليه'])}\nتيكتات اتقفلت: {len([t for t in tickets.values() if t['status']=='closed'])}\n\nفريق خدمة العملاء:\n👤 Mr cat - @cat_max_10\n👤 تيتو ™ - @MOON_104", reply_markup=back()); return
+        if data=="owner_tickets":
+            if not is_support(uid): return
+            txt="التيكتات المفتوحة 🎫\n\n"
+            for tid,t in tickets.items():
+                if t['status']!='closed': txt+=f"#{tid} - {t['user_name']} ({t['user_id']}): {t['msg'][:40]} - {t['status']}\n"
+            if txt=="التيكتات المفتوحة 🎫\n\n": txt="مفيش تيكتات مفتوحة"
+            txt+="\n\nرد: /reply رقم_التيكت ردك\nقفل: /close رقم_التيكت"
+            await q.edit_message_text(txt, reply_markup=back()); return
+        # ===== الاونر =====
         if data=="owner":
             if uid!=OWNER_ID: await q.edit_message_text("مش الاونر", reply_markup=back()); return
-            kb=InlineKeyboardMarkup([[InlineKeyboardButton("احصائيات", callback_data="o_stats"), InlineKeyboardButton("اذاعة", callback_data="o_broadcast")],[InlineKeyboardButton("اضف كوينز", callback_data="o_add"), InlineKeyboardButton("خصم كوينز", callback_data="o_remove")],[InlineKeyboardButton("حظر / فك", callback_data="o_ban"), InlineKeyboardButton("اعمل كود", callback_data="o_code")],[InlineKeyboardButton("شوف يوزر", callback_data="o_view"), InlineKeyboardButton("تصفير", callback_data="o_reset")],[InlineKeyboardButton("رجوع", callback_data="back")]])
-            await q.edit_message_text(f"لوحة الاونر\n\nاهلا يا اونر\nمستخدمين: {len(users)}\nاجمالي: {sum(u['coins'] for u in users.values())}", reply_markup=kb); return
+            kb=InlineKeyboardMarkup([[InlineKeyboardButton("احصائيات", callback_data="o_stats"), InlineKeyboardButton("اذاعة", callback_data="o_broadcast")],[InlineKeyboardButton("اضف فلوس", callback_data="o_add"), InlineKeyboardButton("خصم فلوس", callback_data="o_remove")],[InlineKeyboardButton("حظر / فك", callback_data="o_ban"), InlineKeyboardButton("شوف يوزر", callback_data="o_view")],[InlineKeyboardButton("تيكتات العملاء", callback_data="owner_tickets"), InlineKeyboardButton("تصفير يوزر", callback_data="o_reset_user")],[InlineKeyboardButton("ادي VIP", callback_data="o_give_vip"), InlineKeyboardButton("شيل VIP", callback_data="o_remove_vip")],[InlineKeyboardButton("تصفير الكل", callback_data="o_reset_all")],[InlineKeyboardButton("رجوع", callback_data="back")]])
+            total=sum(u["cash"]+u["bank"]+u["savings"] for u in users.values()); open_t=len([t for t in tickets.values() if t['status']!='closed'])
+            await q.edit_message_text(f"لوحة الاونر 👑\n\nمستخدمين: {len(users)}\nاجمالي فلوس: {total}\nقروض: {sum(u['loan'] for u in users.values())}\nتيكتات مفتوحة: {open_t}\nشهادات: {sum(len(u['certs']) for u in users.values())}\nودائع: {sum(len(u['deposits']) for u in users.values())}", reply_markup=kb); return
         if data=="o_stats":
             if uid!=OWNER_ID: return
-            await q.edit_message_text(f"احصائيات\nمستخدمين: {len(users)}\nكوينز: {sum(u['coins'] for u in users.values())}\nبنك: {sum(u['bank'] for u in users.values())}\nالعاب: {sum(u['games'] for u in users.values())}", reply_markup=back()); return
+            await q.edit_message_text(f"احصائيات 📊\nمستخدمين: {len(users)}\nكاش: {sum(u['cash'] for u in users.values())}\nبنك: {sum(u['bank'] for u in users.values())}\nتحويش: {sum(u['savings'] for u in users.values())}\nقروض: {sum(u['loan'] for u in users.values())}\nكريديت: {sum(u['credit_used'] for u in users.values())}", reply_markup=back()); return
         if data=="o_broadcast":
             if uid!=OWNER_ID: return
             context.user_data["wait_broadcast"]=True; await q.edit_message_text("ابعت رسالة الاذاعة دلوقتي", reply_markup=back()); return
@@ -213,341 +296,109 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if data=="o_ban":
             if uid!=OWNER_ID: return
             context.user_data["wait_ban"]=True; await q.edit_message_text("اكتب ID اللي عايز تحظره / تفك حظره", reply_markup=back()); return
-        if data=="o_code":
-            if uid!=OWNER_ID: return
-            code=f"TRAN{random.randint(100,999)}"; codes[code]=100; await q.edit_message_text(f"كود جديد: {code}\nالهدية: 100", reply_markup=back()); return
         if data=="o_view":
             if uid!=OWNER_ID: return
             context.user_data["wait_view"]=True; await q.edit_message_text("اكتب ID اليوزر", reply_markup=back()); return
-        if data=="o_reset":
+        if data=="o_reset_user":
             if uid!=OWNER_ID: return
-            await q.edit_message_text("اكتب تصفير في الشات لو متأكد", reply_markup=back()); return
+            context.user_data["wait_reset_user"]=True; await q.edit_message_text("اكتب ID اللي عايز تصفره", reply_markup=back()); return
+        if data=="o_give_vip":
+            if uid!=OWNER_ID: return
+            context.user_data["wait_give_vip"]=True; await q.edit_message_text("اكتب ID اللي عايز تديله VIP ببلاش", reply_markup=back()); return
+        if data=="o_remove_vip":
+            if uid!=OWNER_ID: return
+            context.user_data["wait_remove_vip"]=True; await q.edit_message_text("اكتب ID اللي عايز تشيل منه VIP", reply_markup=back()); return
+        if data=="o_reset_all":
+            if uid!=OWNER_ID: return
+            context.user_data["wait_reset_all"]=True; await q.edit_message_text("متأكد عايز تصفر الكل؟ اكتب: ايوه", reply_markup=back()); return
     except Exception as e:
-        print(f"BUTTON ERROR: {e} - {data}")
+        print(f"BUTTON ERROR: {e}")
         try: await q.edit_message_text("حصل ايرور، دوس تحديث", reply_markup=main_menu(uid))
         except: pass
 
-async def cmd_mine(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid=update.effective_user.id; u=get_user(uid); now=time.time()
-    if now-mining_last.get(uid,0)<3600: await update.message.reply_text(f"لسه بتعدن! فاضل {int((3600-(now-mining_last.get(uid,0)))/60)} دقيقة"); return
-    mining_last[uid]=now; mined=random.randint(30,150)*(2 if u.get("vip") else 1); add_coins(uid,mined,"تعدين"); await update.message.reply_text(f"عدنت! +{mined}\nمعاك: {u['coins']}")
-async def cmd_work(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid=update.effective_user.id; u=get_user(uid); job=random.choice(["طباخ","مبرمج","سواق","دكتور","مغني","لاعب كورة"]); salary=random.randint(50,200)*(2 if u.get("vip") else 1); add_coins(uid,salary,"شغل"); await update.message.reply_text(f"اشتغلت {job}!\n+{salary}\nمعاك: {u['coins']}")
-async def cmd_box(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid=update.effective_user.id; u=get_user(uid); today=datetime.now().strftime("%Y-%m-%d")
-    if u.get("last_box")==today: await update.message.reply_text("فتحت الصندوق النهاردة، تعالى بكرة"); return
-    u["last_box"]=today; prize=random.choice([10,20,50,100,200,500,0])
-    if prize==0: await update.message.reply_text("الصندوق فاضي!")
-    else: add_coins(uid,prize,"صندوق"); await update.message.reply_text(f"فتحت الصندوق! +{prize}\nمعاك: {u['coins']}")
-async def cmd_lottery(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def cmd_deposit(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid=update.effective_user.id; u=get_user(uid)
-    if uid in lottery_players: await update.message.reply_text("دخلت خلاص"); return
-    if u["coins"]<20: await update.message.reply_text("محتاج 20 كوين"); return
-    u["coins"]-=20; lottery_players.append(uid); await update.message.reply_text(f"دخلت اليانصيب!\nلاعبين: {len(lottery_players)}\nاكتب /lottery_draw")
-async def cmd_lottery_draw(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if len(lottery_players)<2: await update.message.reply_text("محتاج 2 على الاقل"); return
-    w=random.choice(lottery_players); prize=len(lottery_players)*20; add_coins(w,prize,"يانصيب"); await update.message.reply_text(f"الفايز باليانصيب!\n{w}\nخد {prize}"); lottery_players.clear()
-async def cmd_marry(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid=update.effective_user.id; u=get_user(uid)
-    if uid in marriages: await update.message.reply_text(f"انت متجوز {marriages[uid]} خلاص!"); return
-    if not context.args: await update.message.reply_text("اكتب: /marry ID الشريك\nالجواز بـ 500 وبيجيب +100 كل يوم"); return
-    try:
-        partner=int(context.args[0])
-        if partner==uid: await update.message.reply_text("مينفعش تتجوز نفسك!"); return
-        if partner in marriages: await update.message.reply_text("متجوز!"); return
-        if u["coins"]<500: await update.message.reply_text("الجواز بـ 500"); return
-        u["coins"]-=500; marriages[uid]=partner; marriages[partner]=uid; add_coins(partner,200,"جواز"); await update.message.reply_text(f"مبروك الجواز!\nانت و {partner} بقيتوا متجوزين!\nهدية 200")
-        try: await context.bot.send_message(partner, f"{update.effective_user.first_name} اتجوزك! خدت 200")
-        except: pass
-    except: await update.message.reply_text("اكتب: /marry ID")
-async def cmd_divorce(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid=update.effective_user.id
-    if uid not in marriages: await update.message.reply_text("انت مش متجوز اصلا"); return
-    p=marriages.pop(uid)
-    if p in marriages: marriages.pop(p)
-    await update.message.reply_text("اتطلقت! بقيت سنجل")
-async def cmd_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid=update.effective_user.id
-    if not context.args: await update.message.reply_text("اكتب: /chat رسالتك"); return
-    msg=" ".join(context.args); sent=0
-    for x in list(users.keys()):
-        if x==uid: continue
-        try: await context.bot.send_message(x, f"{update.effective_user.first_name}:\n\n{msg}"); sent+=1
-        except: pass
-    await update.message.reply_text(f"وصلت لـ {sent} واحد")
-async def cmd_trade(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    for k in stock_prices: stock_prices[k]=max(10, stock_prices[k]+random.randint(-20,30))
-    txt="بورصة TRAN\n\n" + "\n".join([f"{k}: {v}" for k,v in stock_prices.items()]) + "\n\nاشتري: /buy_stock TRAN 5\nبيع: /sell_stock TRAN 5\nنصيحة: /smart"
-    await update.message.reply_text(txt)
-async def cmd_buy_stock(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid=update.effective_user.id; u=get_user(uid)
-    if len(context.args)<2: await update.message.reply_text("اكتب: /buy_stock TRAN 5"); return
-    sym=context.args[0].upper(); qty=int(context.args[1]); price=stock_prices.get(sym,0)*qty
-    if u["coins"]<price: await update.message.reply_text(f"محتاج {price}"); return
-    u["coins"]-=price; u.setdefault("stocks",{})[sym]=u.get("stocks",{}).get(sym,0)+qty; await update.message.reply_text(f"اشتريت {qty} {sym}!\nدفعت {price}")
-async def cmd_sell_stock(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid=update.effective_user.id; u=get_user(uid)
-    if len(context.args)<2: await update.message.reply_text("اكتب: /sell_stock TRAN 5"); return
-    sym=context.args[0].upper(); qty=int(context.args[1]); have=u.get("stocks",{}).get(sym,0)
-    if have<qty: await update.message.reply_text(f"معاك {have} بس"); return
-    price=stock_prices.get(sym,0)*qty; u["coins"]+=price; u["stocks"][sym]-=qty; await update.message.reply_text(f"بعت {qty} {sym}!\nخدت {price}")
-async def cmd_pet(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid=update.effective_user.id; u=get_user(uid)
-    if uid not in pets:
-        if not context.args or context.args[0]!="buy": await update.message.reply_text("اشتري حيوان بـ 300\nاكتب: /pet buy"); return
-        if u["coins"]<300: await update.message.reply_text("محتاج 300"); return
-        u["coins"]-=300; pets[uid]={"name":random.choice(["ريكس","لولو","بوبو","سيمبا"]),"level":1}; await update.message.reply_text(f"اشتريت {pets[uid]['name']}!\nأكله بـ /pet feed"); return
-    pet=pets[uid]
-    if context.args and context.args[0]=="feed": pet["level"]+=1; r=pet["level"]*20; add_coins(uid,r,"حيوان"); await update.message.reply_text(f"أكلت {pet['name']}!\nمستوى {pet['level']}\n+{r}")
-    else: await update.message.reply_text(f"حيوانك: {pet['name']}\nمستوى {pet['level']}\nأكله بـ /pet feed")
-async def cmd_house(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid=update.effective_user.id; u=get_user(uid)
-    if uid not in houses:
-        if not context.args or context.args[0]!="buy": await update.message.reply_text("اشتري بيت بـ 2000\nاكتب: /house buy\nبيجيب 100 كل يوم!"); return
-        if u["coins"]<2000: await update.message.reply_text("محتاج 2000"); return
-        u["coins"]-=2000; houses[uid]=True; await update.message.reply_text("اشتريت بيت!\nخد ايجار كل يوم بـ /house"); return
-    u["coins"]+=100; await update.message.reply_text(f"خدت ايجار +100\nمعاك: {u['coins']}")
-async def cmd_car(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid=update.effective_user.id; u=get_user(uid)
-    if uid not in cars:
-        if not context.args or context.args[0]!="buy": await update.message.reply_text("اشتري عربية بـ 5000\nاكتب: /car buy\nبتجيب 200 كل يوم!"); return
-        if u["coins"]<5000: await update.message.reply_text("محتاج 5000"); return
-        u["coins"]-=5000; cars[uid]=True; await update.message.reply_text("اشتريت عربية!\nاشتغل اوبر بـ /car"); return
-    u["coins"]+=200; await update.message.reply_text(f"اشتغلت اوبر! +200\nمعاك: {u['coins']}")
-async def cmd_gym(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid=update.effective_user.id; u=get_user(uid); u["power"]+=5; add_coins(uid,10,"جيم"); await update.message.reply_text(f"اتمرنت!\nقوتك {u['power']}\n+10")
-async def cmd_study(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid=update.effective_user.id; u=get_user(uid); u["edu"]+=1; await update.message.reply_text(f"ذاكرت!\nمستواك {u['edu']}")
-async def cmd_battle(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid=update.effective_user.id; u=get_user(uid)
-    if len(context.args)<2: await update.message.reply_text("اكتب: /battle ID المبلغ"); return
-    try:
-        target=int(context.args[0]); bet=int(context.args[1])
-        if u["coins"]<bet: await update.message.reply_text("معكش كفاية"); return
-        tu=get_user(target)
-        if tu["coins"]<bet: await update.message.reply_text("خصمك معهوش كفاية"); return
-        my=random.randint(1,100)+u["level"]*5+u.get("power",10); en=random.randint(1,100)+tu["level"]*5+tu.get("power",10)
-        if my>en: u["coins"]+=bet; tu["coins"]-=bet; await update.message.reply_text(f"كسبت!\n{my} vs {en}\nخدت {bet}")
-        elif my<en: u["coins"]-=bet; tu["coins"]+=bet; await update.message.reply_text(f"خسرت\n{my} vs {en}\nخسرت {bet}")
-        else: await update.message.reply_text("تعادل!")
-    except: await update.message.reply_text("اكتب صح")
-async def cmd_gift(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid=update.effective_user.id; u=get_user(uid)
-    if len(context.args)<2: await update.message.reply_text("اكتب: /gift ID المبلغ"); return
-    try:
-        t=int(context.args[0]); amt=int(context.args[1])
-        if u["coins"]<amt: await update.message.reply_text("معكش كفاية"); return
-        u["coins"]-=amt; get_user(t)["coins"]+=amt; await update.message.reply_text(f"بعت هدية {amt} لـ {t}")
-        try: await context.bot.send_message(t, f"جاتلك هدية {amt} من {update.effective_user.first_name}")
-        except: pass
-    except: await update.message.reply_text("اكتب صح")
-async def cmd_clan(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid=update.effective_user.id
-    if not context.args: await update.message.reply_text("اكتب: /clan اسم الكلان\nمثال: /clan الاساطير"); return
-    name=" ".join(context.args); clans.setdefault(name,{"members":[]})
-    if uid not in clans[name]["members"]: clans[name]["members"].append(uid); add_coins(uid,100,"كلان"); await update.message.reply_text(f"انضميت لكلان {name}!\nاعضاء: {len(clans[name]['members'])}\n+100")
-    else: await update.message.reply_text(f"انت في كلان {name} خلاص")
-async def cmd_race(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid=update.effective_user.id; u=get_user(uid); horses=["برق","رعد","صقر","نمر"]
-    if not context.args: await update.message.reply_text("اختار حصان: /race 1 لـ /race 4\nالرهان 50، لو كسبت تاخد 200"); return
-    try:
-        pick=int(context.args[0])-1
-        if u["coins"]<50: await update.message.reply_text("محتاج 50"); return
-        winner=random.randint(0,3)
-        if pick==winner: add_coins(uid,200,"سباق"); await update.message.reply_text(f"الفايز: {horses[winner]}\nحصانك كسب! +200")
-        else: add_coins(uid,-50,"سباق"); await update.message.reply_text(f"الفايز: {horses[winner]}\nحصانك خسر -50")
-    except: await update.message.reply_text("اكتب: /race 1")
-async def cmd_roulette(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid=update.effective_user.id; u=get_user(uid)
-    if not context.args: await update.message.reply_text("اكتب: /roulette احمر او /roulette اسود"); return
-    choice=context.args[0]; result=random.choice(["احمر","اسود"])
-    if u["coins"]<50: await update.message.reply_text("محتاج 50"); return
-    if choice==result: add_coins(uid,100,"روليت"); await update.message.reply_text(f"النتيجة: {result}\nكسبت! +100")
-    else: add_coins(uid,-50,"روليت"); await update.message.reply_text(f"النتيجة: {result}\nخسرت -50")
-async def cmd_ai(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not context.args: await update.message.reply_text("اكتب: /ai سؤالك\nمثال: /ai ازاي اكسب كوينز؟"); return
-    q_text=" ".join(context.args).lower()
-    if "كوينز" in q_text or "اكسب" in q_text: ans="عشان تكسب كوينز:\n1- العب\n2- المهام\n3- ادعي صحابك\n4- عدن\n5- اشتغل\n6- بيت وعربية\n7- اسرق في المافيا"
-    elif "حب" in q_text or "جواز" in q_text: ans="اتجوز بـ /marry ID\nهتاخد +100 كل يوم + هدية 200"
-    elif "ازيك" in q_text or "اهلا" in q_text: ans=f"اهلا بيك يا {update.effective_user.first_name}! عايز تلعب ولا تكسب ولا تتجوز ولا تسرق؟"
-    elif "بنك" in q_text: ans="البنك: ايداع، سحب، قرض 500، فوايد 10% كل يوم!"
-    elif "مافيا" in q_text or "سرقة" in q_text: ans="المافيا: انضم بـ /mafia، اسرق بـ /steal، لو اتمسكت ادخل السجن واطلع بـ /free، ولو عايز براءة روح المحكمة /court"
-    else: ans=f"فهمتك!\nسؤالك: {q_text}\nنصيحتي: العب كتير وادعي صحابك وهتبقى غني"
-    await update.message.reply_text(ans)
-async def cmd_vip(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid=update.effective_user.id; u=get_user(uid)
-    if u["coins"]<1000: await update.message.reply_text("محتاج 1000 كوين عشان تبقى VIP"); return
-    u["coins"]-=1000; u["vip"]=True; await update.message.reply_text("بقيت VIP!\nكل ارباحك هتتضاعف x2")
-async def cmd_streak(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid=update.effective_user.id; u=get_user(uid); u["streak"]+=1; r=u["streak"]*10; add_coins(uid,r,"سلسلة"); await update.message.reply_text(f"سلسلة دخولك: {u['streak']} يوم\n+{r}")
-async def cmd_tournament(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid=update.effective_user.id; u=get_user(uid)
-    if uid in tournaments["players"]: await update.message.reply_text(f"انت في البطولة خلاص! {len(tournaments['players'])}"); return
-    if u["coins"]<100: await update.message.reply_text("البطولة بـ 100"); return
-    u["coins"]-=100; tournaments["players"].append(uid); await update.message.reply_text(f"دخلت البطولة!\nلاعبين: {len(tournaments['players'])}\nالجايزة 10000")
-async def cmd_tournament_win(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if len(tournaments["players"])<2: await update.message.reply_text("محتاج 2 على الاقل"); return
-    w=random.choice(tournaments["players"]); add_coins(w,10000,"بطولة"); await update.message.reply_text(f"الفايز بالبطولة!\n{w}\nخد 10000"); tournaments["players"].clear()
-async def cmd_skins(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid=update.effective_user.id; u=get_user(uid)
-    if not context.args:
-        txt="متجر السكنات\n\n" + "\n".join([f"{v['name']} - {v['price']} | /skins {k}" for k,v in skins_shop.items()]) + f"\n\nسكنك: {u.get('skin','عادي')}"
-        await update.message.reply_text(txt); return
-    sid=context.args[0].lower()
-    if sid not in skins_shop: await update.message.reply_text("سكن مش موجود"); return
-    s=skins_shop[sid]
-    if u["coins"]<s["price"]: await update.message.reply_text(f"محتاج {s['price']}"); return
-    u["coins"]-=s["price"]; u["skin"]=s["name"]; await update.message.reply_text(f"اشتريت {s['name']}!")
-async def cmd_quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    q=random.choice(quiz_q); context.user_data["quiz_ans"]=q["a"]
-    kb=InlineKeyboardMarkup([[InlineKeyboardButton(opt, callback_data=f"quiz_{opt}")] for opt in q["opts"]])
-    await update.message.reply_text(f"سؤال ذكاء\n\n{q['q']}", reply_markup=kb)
-async def cmd_inventory(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid=update.effective_user.id; u=get_user(uid); inv=[]
-    if uid in pets: inv.append(f"حيوان: {pets[uid]['name']}")
-    if uid in houses: inv.append("بيت")
-    if uid in cars: inv.append("عربية")
-    if u.get("vip"): inv.append("VIP")
-    if uid in marriages: inv.append(f"متجوز {marriages[uid]}")
-    if u.get("mafia"): inv.append(f"{u['mafia']}")
-    if not inv: inv.append("مخزونك فاضي")
-    await update.message.reply_text("مخزونك\n\n" + "\n".join(inv))
-async def cmd_analyze(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid=update.effective_user.id; u=get_user(uid); rate=(u["wins"]/max(1,u["games"])*100) if u["games"] else 0
-    await update.message.reply_text(f"تحليل ادائك\n\nلعبت: {u['games']}\nكسبت: {u['wins']} ({rate:.0f}%)\nكسبت: {u['total_won']}\nبنك: {u['bank']}")
-async def cmd_horoscope(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(f"حظك اليوم\n\n{random.choice(['النهاردة يوم حظك! العب كتير','هتكسب كوينز كتير','حد بيحبك هيديك هدية','حظك حلو، جرب اليانصيب','ركز في الشغل'])}")
-async def cmd_title(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid=update.effective_user.id; u=get_user(uid)
-    if not context.args: await update.message.reply_text(f"لقبك: {u.get('title','مفيش')}\nغيره بـ: /title الملك"); return
-    title=" ".join(context.args)
-    if u["coins"]<100: await update.message.reply_text("اللقب بـ 100"); return
-    u["coins"]-=100; u["title"]=title; await update.message.reply_text(f"بقى لقبك: {title}")
-async def cmd_insurance(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid=update.effective_user.id; u=get_user(uid)
-    if u.get("insured"): await update.message.reply_text("انت مأمن فلوسك خلاص"); return
-    if u["coins"]<200: await update.message.reply_text("التأمين بـ 200"); return
-    u["coins"]-=200; u["insured"]=True; await update.message.reply_text("أمنت فلوسك!")
-async def cmd_league(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    top=sorted(users.values(), key=lambda x: x["points"], reverse=True)[:5]; txt="الدوري الاسبوعي\n\n"
-    medals=["1 - 5000","2 - 3000","3 - 1500","4 - 500","5 - 200"]
-    for i,u2 in enumerate(top): txt+=f"{medals[i]} - {u2.get('name','')} | {u2['points']} نقطة\n"
-    await update.message.reply_text(txt)
-async def cmd_note(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid=update.effective_user.id; u=get_user(uid)
-    if not context.args:
-        notes=u.get("notes",[]); await update.message.reply_text("مذكراتك\n\n" + ("\n".join(notes[-5:]) if notes else "فاضية - اكتب /note انا بحب TRAN")); return
-    u.setdefault("notes",[]).append(" ".join(context.args)); await update.message.reply_text("حفظت مذكرتك!")
-async def cmd_auction(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid=update.effective_user.id; u=get_user(uid)
-    if not context.args:
-        if not auctions: await update.message.reply_text("المزاد فاضي\nاكتب: /auction المبلغ"); return
-        await update.message.reply_text("المزادات:\n\n" + "\n".join([f"{a['seller']} بيبيع {a['amount']}" for a in auctions[-5:]])); return
+    if not context.args: await update.message.reply_text("اكتب: /deposit 100"); return
     try:
         amt=int(context.args[0])
-        if u["coins"]<amt: await update.message.reply_text("معكش كفاية"); return
-        u["coins"]-=amt; auctions.append({"seller":uid,"amount":amt}); await update.message.reply_text(f"عرضت {amt} في المزاد!")
-    except: await update.message.reply_text("اكتب: /auction المبلغ")
-async def cmd_smart(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(f"ذكاء التداول\n\n{random.choice(['اشتري TRAN دلوقتي، سعره هيطلع!','بيع GOLD، سعره هينزل!','BTC رخيص دلوقتي، اشتري بسرعة!','DOGE هيطلع جامد، اشتري!','متشتريش دلوقتي، السوق خطر!'])}\n\nشوف الاسعار بـ /trade")
-async def cmd_challenge(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    ch=random.choice(["العب 3 مرات واكسب +100","ادعي 1 صاحب واكسب +150","عدن مرة واكسب +80","اشتغل مرة واكسب +120","العب نرد 5 مرات واكسب +200"])
-    await update.message.reply_text(f"تحدي اليوم\n\n{ch}\n\nخلص التحدي وخد الجايزة!\nاكتب /challenge_done لما تخلصه")
-async def cmd_challenge_done(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid=update.effective_user.id; r=random.randint(80,200); add_coins(uid,r,"تحدي"); await update.message.reply_text(f"خلصت التحدي!\nخدت +{r}\nعاش يا بطل!")
-async def cmd_word(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    w=random.choice(words); context.user_data["word"]=w; hint=w[0]+" _ "*(len(w)-1); await update.message.reply_text(f"خمن الكلمة!\n\nالكلمة: {hint}\nعدد الحروف: {len(w)}\nابعت تخمينك، لو صح تاخد +40")
-async def cmd_mafia(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        if u["cash"]<amt: await update.message.reply_text("معكش كفاية"); return
+        u["cash"]-=amt; u["bank"]+=amt; add_h(uid,f"ايداع +{amt}"); await update.message.reply_text(f"ايداع تم ✅ بنك: {u['bank']}")
+    except: await update.message.reply_text("اكتب رقم صح")
+async def cmd_withdraw(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid=update.effective_user.id; u=get_user(uid)
-    if not u.get("mafia"): u["mafia"]=random.choice(["مافيا TRAN","مافيا الصقور","مافيا الثعابين"]); add_coins(uid,200,"مافيا"); await update.message.reply_text(f"انضميت لـ {u['mafia']}!\n+200\n\nاسرق بـ /steal، اهرب بـ /escape، شوف سجنك بـ /jail")
-    else: await update.message.reply_text(f"انت في {u['mafia']} خلاص\nاسرق بـ /steal")
-async def cmd_steal(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid=update.effective_user.id; u=get_user(uid)
-    if uid in jailed: await update.message.reply_text("انت في السجن! اكتب /free عشان تطلع"); return
-    if random.random()<0.3: u["wanted"]+=1; jailed[uid]=True; await update.message.reply_text(f"اتمسكت!\nدخلت السجن!\nمطلوب: {u['wanted']}\nاطلع بـ /free (200) او روح المحكمة /court"); return
-    stolen=random.randint(50,300); add_coins(uid,stolen,"سرقة"); await update.message.reply_text(f"سرقت! +{stolen}\nمحدش شافك\nمعاك: {u['coins']}")
-async def cmd_rob(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid=update.effective_user.id; u=get_user(uid)
-    if len(context.args)<1: await update.message.reply_text("اكتب: /rob ID\nمثال: /rob 123456"); return
+    if not context.args: await update.message.reply_text("اكتب: /withdraw 100"); return
     try:
-        target=int(context.args[0]); tu=get_user(target)
-        if tu["coins"]<50: await update.message.reply_text("الضحية معهوش فلوس"); return
-        if random.random()<0.4: u["wanted"]+=1; jailed[uid]=True; await update.message.reply_text("اتمسكت وانت بتسرق صاحبك!\nدخلت السجن! /free عشان تطلع"); return
-        stolen=random.randint(20,min(200,tu["coins"])); tu["coins"]-=stolen; u["coins"]+=stolen; await update.message.reply_text(f"سرقت {stolen} من {target}!\nمعاك: {u['coins']}")
-        try: await context.bot.send_message(target, f"حد سرقك! خسرت {stolen}\nاللي سرقك: {update.effective_user.first_name}")
+        amt=int(context.args[0])
+        if u["bank"]<amt: await update.message.reply_text("معكش في البنك"); return
+        u["bank"]-=amt; u["cash"]+=amt; add_h(uid,f"سحب -{amt}"); await update.message.reply_text(f"سحب تم ✅ كاش: {u['cash']}")
+    except: await update.message.reply_text("اكتب رقم صح")
+async def cmd_transfer(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    uid=update.effective_user.id; u=get_user(uid)
+    if len(context.args)<2: await update.message.reply_text("اكتب: /transfer ID المبلغ"); return
+    try:
+        t=int(context.args[0]); amt=int(context.args[1])
+        if u["cash"]<amt: await update.message.reply_text("معكش كفاية"); return
+        get_user(t); u["cash"]-=amt; users[t]["cash"]+=amt; add_h(uid,f"حولت -{amt}"); add_h(t,f"وصلك +{amt}"); await update.message.reply_text(f"حولت {amt} لـ {t} ✅")
+        try: await context.bot.send_message(t, f"وصلك {amt} من {update.effective_user.first_name} 💸")
         except: pass
-    except: await update.message.reply_text("اكتب: /rob ID")
-async def cmd_jail(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid=update.effective_user.id
-    if uid in jailed: await update.message.reply_text("انت في السجن!\nاطلع بـ /free (200) او استنى المحكمة /court")
-    else: await update.message.reply_text("انت حر! مش في السجن")
-async def cmd_free(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid=update.effective_user.id; u=get_user(uid)
-    if uid not in jailed: await update.message.reply_text("انت مش في السجن اصلا"); return
-    if u["coins"]<200: await update.message.reply_text("الكفالة 200، معكش كفاية"); return
-    u["coins"]-=200; jailed.pop(uid,None); await update.message.reply_text("طلعت من السجن!\nدفعت كفالة 200\nانت حر دلوقتي")
-async def cmd_court(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid=update.effective_user.id; u=get_user(uid)
-    if u.get("wanted",0)==0: await update.message.reply_text("انت بريء! معلكش حاجة"); return
-    if random.random()<0.5: u["wanted"]=0; jailed.pop(uid,None); await update.message.reply_text("براءة!\nالقاضي طلعك براءة!")
-    else: await update.message.reply_text(f"ادانة!\nعليك غرامة 300\nمطلوب: {u['wanted']}")
-async def cmd_escape(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid=update.effective_user.id
-    if uid not in jailed: await update.message.reply_text("انت مش في السجن"); return
-    if random.random()<0.5: jailed.pop(uid,None); await update.message.reply_text("هربت من السجن!\nانت حر دلوقتي، بس البوليس بيدور عليك!")
-    else: await update.message.reply_text("فشلت تهرب!\nالحارس مسكك، حاول تاني")
-async def cmd_smuggle(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid=update.effective_user.id; u=get_user(uid)
-    if u["coins"]<100: await update.message.reply_text("التهريب محتاج 100 رأس مال"); return
-    if random.random()<0.4: u["coins"]-=100; u["wanted"]+=1; await update.message.reply_text("اتمسكت وانت بتهرب!\nخسرت 100 وبقيت مطلوب!"); return
-    profit=random.randint(200,500); add_coins(uid,profit,"تهريب"); await update.message.reply_text(f"هربت بضاعة!\nكسبت +{profit}\nمعاك: {u['coins']}")
-async def cmd_badges(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid=update.effective_user.id; u=get_user(uid); badges=[]
-    if u["games"]>=10: badges.append("محترف العاب")
-    if u["ref"]>=5: badges.append("ملك الدعوات")
-    if u["coins"]>=5000: badges.append("غني")
-    if u.get("vip"): badges.append("VIP")
-    if uid in marriages: badges.append("متجوز")
-    if u.get("mafia"): badges.append("مافيا")
-    if not badges: badges.append("مفيش اوسمة لسه، العب واكسب!")
-    await update.message.reply_text("اوسمتك\n\n" + "\n".join(badges))
-async def cmd_clanwar(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid=update.effective_user.id
-    if not clans: await update.message.reply_text("مفيش كلانات، اعمل كلان الاول بـ /clan اسم"); return
-    my=random.randint(50,150); en=random.randint(50,150)
-    if my>en: add_coins(uid,300,"حرب كلان"); await update.message.reply_text(f"كلانك كسب الحرب!\n{my} vs {en}\n+300")
-    else: await update.message.reply_text(f"كلانك خسر الحرب\n{my} vs {en}")
-async def cmd_golddice(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid=update.effective_user.id; u=get_user(uid)
-    if not u.get("vip"): await update.message.reply_text("النرد الذهبي للـ VIP بس!\nاكتب /vip"); return
-    r=random.randint(1,6)
-    if r>=3: add_coins(uid,100,"نرد ذهبي"); await update.message.reply_text(f"النرد الذهبي: {r}\nكسبت +100!")
-    else: add_coins(uid,-20,"نرد ذهبي"); await update.message.reply_text(f"النرد الذهبي: {r}\nخسرت -20")
-async def cmd_randomgift(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not users: return
-    w=random.choice(list(users.keys())); prize=random.randint(50,300); add_coins(w,prize,"هدية عشوائية")
-    try: await context.bot.send_message(w, f"جاتلك هدية عشوائية!\n+{prize}")
-    except: pass
-    await update.message.reply_text(f"هدية عشوائية راحت لـ {w} +{prize}")
+    except: await update.message.reply_text("اكتب صح: /transfer ID المبلغ")
+async def cmd_balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    uid=update.effective_user.id; u=get_user(uid); await update.message.reply_text(f"رصيدك 💰\nكاش: {u['cash']}\nبنك: {u['bank']}\nتحويش: {u['savings']}\nالكلي: {u['cash']+u['bank']+u['savings']}")
+async def cmd_visa(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    uid=update.effective_user.id; u=get_user(uid); await update.message.reply_text(f"فيزا TRAN 💳\n{update.effective_user.first_name}\n{u['card_num']}\nرصيد: {u['bank']}")
+async def cmd_top(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    top=sorted(users.values(), key=lambda x: x["cash"]+x["bank"]+x["savings"], reverse=True)[:10]; txt="اغني 10 🏆\n\n"
+    for i,u2 in enumerate(top): txt+=f"{i+1}- {u2.get('name','')} - {u2['cash']+u2['bank']+u2['savings']}\n"
+    await update.message.reply_text(txt)
+async def cmd_daily(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    uid=update.effective_user.id; u=get_user(uid); today=datetime.now().strftime("%Y-%m-%d")
+    if u["last_daily"]==today: await update.message.reply_text("خدتها النهاردة"); return
+    u["last_daily"]=today; prize=random.randint(20,100)*(2 if u["vip"] else 1); u["cash"]+=prize; await update.message.reply_text(f"هديتك +{prize} 🎁")
+async def cmd_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_support(update.effective_user.id): await update.message.reply_text("انت مش خدمة عملاء"); return
+    if len(context.args)<2: await update.message.reply_text("اكتب: /reply رقم_التيكت الرد"); return
+    try:
+        tid=int(context.args[0]); reply=" ".join(context.args[1:])
+        if tid not in tickets: await update.message.reply_text("التيكت مش موجود"); return
+        tickets[tid]["status"]="اترد عليه"; tickets[tid]["reply"]=reply; tickets[tid]["replied_by"]=update.effective_user.first_name
+        await update.message.reply_text(f"رديت على #{tid} ✅")
+        await context.bot.send_message(tickets[tid]["user_id"], f"رد خدمة العملاء ({update.effective_user.first_name}) على تيكت #{tid}:\n\n{reply}")
+    except: await update.message.reply_text("اكتب صح")
+async def cmd_close(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_support(update.effective_user.id): await update.message.reply_text("انت مش خدمة عملاء"); return
+    if not context.args: await update.message.reply_text("اكتب: /close رقم_التيكت"); return
+    try:
+        tid=int(context.args[0]); tickets[tid]["status"]="closed"; await update.message.reply_text(f"قفلت #{tid} ✅")
+        await context.bot.send_message(tickets[tid]["user_id"], f"تيكت #{tid} اتقفل، شكرا ليك! 🎧")
+    except: await update.message.reply_text("التيكت مش موجود")
 
 async def on_msg(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         uid=update.effective_user.id; txt=(update.message.text or "").strip(); u=get_user(uid)
         if txt=="تصفير" and uid==OWNER_ID: users.clear(); await update.message.reply_text("اتصفر كله"); return
+        if context.user_data.get("wait_ticket"):
+            context.user_data["wait_ticket"]=False
+            ticket_counter[0]+=1; tid=ticket_counter[0]
+            tickets[tid]={"user_id":uid,"user_name":update.effective_user.first_name,"msg":txt,"status":"مفتوح","reply":""}
+            await update.message.reply_text(f"عملت تيكت #{tid} ✅\nمشكلتك: {txt}\nالحالة: مفتوح\nخدمة العملاء هترد عليك", reply_markup=main_menu(uid))
+            for sid in SUPPORT_IDS:
+                try: await context.bot.send_message(sid, f"🎫 تيكت جديد #{tid}\nمن {update.effective_user.first_name} ({uid}):\n{txt}\n\nرد: /reply {tid} ردك")
+                except: pass
+            return
         if context.user_data.get("wait_broadcast") and uid==OWNER_ID:
             context.user_data["wait_broadcast"]=False; c=0
             for x in list(users.keys()):
-                try: await context.bot.send_message(x, f"من الادارة:\n\n{txt}"); c+=1
+                try: await context.bot.send_message(x, f"من بنك TRAN PRO 🏦:\n\n{txt}"); c+=1
                 except: pass
             await update.message.reply_text(f"اتبعت لـ {c}"); return
         if context.user_data.get("wait_add") and uid==OWNER_ID:
             context.user_data["wait_add"]=False
-            try: t,a=map(int,txt.split()); get_user(t); add_coins(t,a,"اونر"); await update.message.reply_text(f"ضفت {a} لـ {t}")
-            except: await update.message.reply_text("اكتب صح: ID المبلغ")
+            try: t,a=map(int,txt.split()); get_user(t); users[t]["cash"]+=a; await update.message.reply_text(f"ضفت {a} لـ {t}")
+            except: await update.message.reply_text("اكتب صح")
             return
         if context.user_data.get("wait_remove") and uid==OWNER_ID:
             context.user_data["wait_remove"]=False
-            try: t,a=map(int,txt.split()); get_user(t); add_coins(t,-a,"خصم"); await update.message.reply_text(f"خصمت {a} من {t}")
+            try: t,a=map(int,txt.split()); get_user(t); users[t]["cash"]-=a; await update.message.reply_text(f"خصمت {a} من {t}")
             except: await update.message.reply_text("اكتب صح")
             return
         if context.user_data.get("wait_ban") and uid==OWNER_ID:
@@ -557,62 +408,74 @@ async def on_msg(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
         if context.user_data.get("wait_view") and uid==OWNER_ID:
             context.user_data["wait_view"]=False
-            try: t=int(txt); uu=get_user(t); await update.message.reply_text(f"{uu['name']}\nID: {t}\nكوينز: {uu['coins']} | بنك: {uu['bank']}\nمحظور: {uu['banned']}\nمافيا: {uu.get('mafia')}")
+            try: t=int(txt); uu=get_user(t); await update.message.reply_text(f"{uu['name']}\nID: {t}\nكاش: {uu['cash']} | بنك: {uu['bank']} | تحويش: {uu['savings']}\nقرض: {uu['loan']}\nمحظور: {uu['banned']}")
             except: await update.message.reply_text("مش موجود")
+            return
+        if context.user_data.get("wait_reset_user") and uid==OWNER_ID:
+            context.user_data["wait_reset_user"]=False
+            try: t=int(txt); get_user(t); users[t].update({"cash":1000,"bank":0,"savings":0,"loan":0,"loan_due":0,"loan_left":0,"credit_used":0,"certs":[],"deposits":[]}); await update.message.reply_text(f"صفرت {t} ✅")
+            except: await update.message.reply_text("ID غلط")
+            return
+        if context.user_data.get("wait_give_vip") and uid==OWNER_ID:
+            context.user_data["wait_give_vip"]=False
+            try: t=int(txt); get_user(t); users[t]["vip"]=True; await update.message.reply_text(f"اديت VIP لـ {t} ✅")
+            except: await update.message.reply_text("ID غلط")
+            return
+        if context.user_data.get("wait_remove_vip") and uid==OWNER_ID:
+            context.user_data["wait_remove_vip"]=False
+            try: t=int(txt); get_user(t); users[t]["vip"]=False; await update.message.reply_text(f"شلت VIP من {t} ✅")
+            except: await update.message.reply_text("ID غلط")
+            return
+        if context.user_data.get("wait_reset_all") and uid==OWNER_ID:
+            context.user_data["wait_reset_all"]=False
+            if txt.lower() in ["ايوه","yes","نعم"]: users.clear(); tickets.clear(); await update.message.reply_text("صفرت الكل")
+            else: await update.message.reply_text("اتلغى")
             return
         if context.user_data.get("wait_transfer"):
             context.user_data["wait_transfer"]=False
             try:
                 t,a=map(int,txt.split())
-                if u["coins"]<a: await update.message.reply_text("معكش كفاية"); return
-                get_user(t); u["coins"]-=a; users[t]["coins"]+=a; await update.message.reply_text(f"حولت {a} لـ {t}")
+                if u["cash"]<a: await update.message.reply_text("معكش كفاية"); return
+                get_user(t); u["cash"]-=a; users[t]["cash"]+=a; add_h(uid,f"حولت -{a}"); add_h(t,f"وصلك +{a}"); await update.message.reply_text(f"حولت {a} لـ {t} ✅")
                 try: await context.bot.send_message(t, f"وصلك {a} من {update.effective_user.first_name}")
                 except: pass
             except: await update.message.reply_text("اكتب: ID المبلغ")
             return
-        if context.user_data.get("guess") is not None:
-            n=context.user_data.pop("guess")
+        if context.user_data.get("wait_check"):
+            context.user_data["wait_check"]=False
             try:
-                g=int(txt)
-                if g==n: add_coins(uid,50,"تخمين"); await update.message.reply_text(f"صح! الرقم كان {n} +50")
-                else: add_coins(uid,-10,"تخمين"); await update.message.reply_text(f"غلط! الرقم كان {n} -10")
-            except: await update.message.reply_text("ابعت رقم")
+                t,a=map(int,txt.split())
+                if u["cash"]<a: await update.message.reply_text("معكش كفاية"); return
+                get_user(t); u["cash"]-=a; code=f"CHK{random.randint(1000,9999)}"; checks[code]={"to":t,"amt":a,"until":datetime.now()+timedelta(days=1)}; add_h(uid,f"عملت شيك -{a}"); await update.message.reply_text(f"عملت شيك {code} ✅\nلـ {t} بمبلغ {a}\nهيصرفه بعد يوم")
+                try: await context.bot.send_message(t, f"جاتلك شيك {code} بمبلغ {a} من {update.effective_user.first_name}\nاصرفه بكرة من /start -> شيك -> اصرف شيك")
+                except: pass
+            except: await update.message.reply_text("اكتب: ID المبلغ")
             return
-        if context.user_data.get("word") is not None:
-            w=context.user_data.pop("word")
-            if txt==w: add_coins(uid,40,"كلمة"); await update.message.reply_text("صح! +40")
-            else: await update.message.reply_text(f"غلط! الكلمة كانت {w}")
-            return
-        if context.user_data.get("wait_code"):
-            context.user_data["wait_code"]=False; code=txt.upper()
-            if code in codes: r=codes.pop(code); add_coins(uid,r,"كود"); await update.message.reply_text(f"خدت +{r}")
-            else: await update.message.reply_text("كود غلط")
-            return
-        if context.user_data.get("wait_support"):
-            context.user_data["wait_support"]=False; await update.message.reply_text("وصلت للاونر", reply_markup=main_menu(uid))
-            try: await context.bot.send_message(OWNER_ID, f"من {update.effective_user.first_name} ({uid}):\n{txt}")
-            except: pass
+        if context.user_data.get("wait_joint"):
+            context.user_data["wait_joint"]=False
+            try:
+                t=int(txt); get_user(t); key=f"{min(uid,t)}_{max(uid,t)}"; joint_accounts[key]={"balance":0,"members":[uid,t]}; u["joint"]=key; users[t]["joint"]=key; await update.message.reply_text(f"عملت حساب مشترك مع {t}! ✅")
+                try: await context.bot.send_message(t, f"{update.effective_user.first_name} عمل معاك حساب مشترك!")
+                except: pass
+            except: await update.message.reply_text("اكتب ID صح")
             return
         await update.message.reply_text("اكتب /start", reply_markup=main_menu(uid))
-    except Exception as e:
-        print(f"MSG ERROR: {e}")
-
-async def on_quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    q=update.callback_query; await q.answer()
-    if q.data.startswith("quiz_"):
-        ans=q.data.replace("quiz_","")
-        if ans==context.user_data.get("quiz_ans"): add_coins(q.from_user.id,40,"quiz"); await q.edit_message_text("صح! +40")
-        else: await q.edit_message_text(f"غلط! الصح كان {context.user_data.get('quiz_ans')}")
+    except Exception as e: print(f"MSG ERROR: {e}")
 
 def main():
     app=ApplicationBuilder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("owner", start))
-    for cmd, fn in [("mine",cmd_mine),("work",cmd_work),("box",cmd_box),("lottery",cmd_lottery),("lottery_draw",cmd_lottery_draw),("marry",cmd_marry),("divorce",cmd_divorce),("chat",cmd_chat),("trade",cmd_trade),("buy_stock",cmd_buy_stock),("sell_stock",cmd_sell_stock),("pet",cmd_pet),("house",cmd_house),("car",cmd_car),("gym",cmd_gym),("study",cmd_study),("battle",cmd_battle),("gift",cmd_gift),("clan",cmd_clan),("race",cmd_race),("roulette",cmd_roulette),("ai",cmd_ai),("vip",cmd_vip),("streak",cmd_streak),("tournament",cmd_tournament),("tournament_win",cmd_tournament_win),("skins",cmd_skins),("quiz",cmd_quiz),("inventory",cmd_inventory),("analyze",cmd_analyze),("horoscope",cmd_horoscope),("title",cmd_title),("insurance",cmd_insurance),("league",cmd_league),("note",cmd_note),("auction",cmd_auction),("smart",cmd_smart),("challenge",cmd_challenge),("challenge_done",cmd_challenge_done),("word",cmd_word),("mafia",cmd_mafia),("steal",cmd_steal),("rob",cmd_rob),("jail",cmd_jail),("free",cmd_free),("court",cmd_court),("escape",cmd_escape),("smuggle",cmd_smuggle),("badges",cmd_badges),("clanwar",cmd_clanwar),("golddice",cmd_golddice),("randomgift",cmd_randomgift)]:
-        app.add_handler(CommandHandler(cmd, fn))
-    app.add_handler(CallbackQueryHandler(on_quiz, pattern="^quiz_"))
+    app.add_handler(CommandHandler("deposit", cmd_deposit))
+    app.add_handler(CommandHandler("withdraw", cmd_withdraw))
+    app.add_handler(CommandHandler("transfer", cmd_transfer))
+    app.add_handler(CommandHandler("balance", cmd_balance))
+    app.add_handler(CommandHandler("visa", cmd_visa))
+    app.add_handler(CommandHandler("top", cmd_top))
+    app.add_handler(CommandHandler("daily", cmd_daily))
+    app.add_handler(CommandHandler("reply", cmd_reply))
+    app.add_handler(CommandHandler("close", cmd_close))
     app.add_handler(CallbackQueryHandler(buttons))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, on_msg))
-    print("TRAN FINAL FIXED STARTED")
+    print("TRAN BANK PRO STARTED")
     app.run_polling()
 if __name__=="__main__": main()
