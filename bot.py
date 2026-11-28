@@ -552,4 +552,9 @@ def callbacks(c):
 
 if __name__ == "__main__":
     print("Bot is running... 👑")
-    bot.infinity_polling()
+    # بيمسح اي Webhook قديم واي نسخة قديمة
+    try:
+        bot.delete_webhook(drop_pending_updates=True)
+    except: pass
+    time.sleep(2)
+    bot.infinity_polling(skip_pending=True)
