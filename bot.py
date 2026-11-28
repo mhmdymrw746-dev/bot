@@ -550,11 +550,23 @@ def callbacks(c):
 
     bot.answer_callback_query(c.id, "تمام يا ملك 👑")
 
+
 if __name__ == "__main__":
     print("Bot is running... 👑")
-    # بيمسح اي Webhook قديم واي نسخة قديمة
+    # بيمسح اي نسخة قديمة وبيستنى
     try:
         bot.delete_webhook(drop_pending_updates=True)
-    except: pass
-    time.sleep(2)
-    bot.infinity_polling(skip_pending=True)
+        print("Webhook deleted - old instance killed")
+    except Exception as e:
+        print(f"Webhook delete: {e}")
+    
+    time.sleep(5)
+    
+    # لو حصل 409 يستنى 10 ثواني ويحاول تاني مش يموت
+    while True:
+        try:
+            bot.infinity_polling(skip_pending=True, timeout=60, long_polling_timeout=60)
+            break
+        except Exception as e:
+            print(f"Polling error: {e} - retry in 10s...")
+            time.sleep(10)
