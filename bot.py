@@ -2,7 +2,7 @@
 # 📥 بوت التحميل - عدي عمرو
 # 👑 حقوق عدي - جميع الحقوق محفوظة © 2026
 
-import os, time, re, subprocess, traceback, uuid, glob, threading
+import os, time, subprocess, traceback, uuid, glob, threading
 import telebot
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 from flask import Flask
@@ -65,37 +65,45 @@ def safe_edit(c, text, kb=None):
         try: bot.send_message(c.message.chat.id, text, reply_markup=kb)
         except: pass
 
-# ===== العلامة المائية - اسمك محفور واضح جوه الفيديو =====
+# ===== العلامة المائية - شعار على جنب + اسم على جنب =====
 def add_watermark(input_file, output_file):
     try:
-        # صورة العلامة - كبيرة وواضحة
-        img = Image.new('RGBA', (1100, 160), (0, 0, 0, 0))
-        draw = ImageDraw.Draw(img)
-        try:
-            font_big = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 62)
-            font_small = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 32)
-        except:
-            font_big = ImageFont.load_default()
-            font_small = font_big
-        # السطر الاول: اسمك
-        text1 = "Adi Amr - عدي عمرو"
-        # ظل اسود تقيل عشان يبان على اي خلفية فاتحة او غامقة
-        for dx, dy in [(5,5),(5,0),(0,5),(-5,0),(0,-5),(-5,-5)]:
-            draw.text((dx, dy), text1, font=font_big, fill=(0,0,0,230))
-        draw.text((0, 0), text1, font=font_big, fill=(255,255,255,255))
-        # السطر التاني: الحقوق
-        text2 = "All Rights Reserved - 2026"
-        draw.text((5, 95), text2, font=font_small, fill=(0,0,0,230))
-        draw.text((0, 90), text2, font=font_small, fill=(255,255,0,255))
-        img.save("watermark.png")
+        # 1 - الشعار على الجنب اليمين فوق - صغير وشيك
+        if os.path.exists("logo.png"):
+            cmd = [
+                "ffmpeg", "-y", "-i", input_file, "-i", "logo.png",
+                "-filter_complex", "[1]scale=140:-1[logo];[0][logo]overlay=main_w-overlay_w-20:20",
+                "-preset", "ultrafast", "-crf", "28", "-codec:a", "copy", output_file
+            ]
+            subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=120)
+            if not os.path.exists(output_file):
+                return False
 
-        cmd = [
-            "ffmpeg", "-y", "-i", input_file, "-i", "watermark.png",
-            "-filter_complex", "[1]scale=iw*0.55:-1[wm];[0][wm]overlay=(main_w-overlay_w)/2:main_h-overlay_h-45",
-            "-codec:a", "copy", output_file
-        ]
-        subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        return os.path.exists(output_file)
+            # 2 - اسمك على الجنب الشمال تحت - صغير وشيك
+            img = Image.new('RGBA', (500, 80), (0, 0, 0, 0))
+            draw = ImageDraw.Draw(img)
+            try:
+                font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 34)
+            except:
+                font = ImageFont.load_default()
+            text = "Adi Amr - عدي عمرو"
+            for dx, dy in [(3,3),(3,0),(0,3)]:
+                draw.text((dx, dy), text, font=font, fill=(0,0,0,200))
+            draw.text((0, 0), text, font=font, fill=(255,255,255,230))
+            img.save("name.png")
+
+            tmp = "tmp_" + output_file
+            cmd2 = [
+                "ffmpeg", "-y", "-i", output_file, "-i", "name.png",
+                "-filter_complex", "[1]scale=iw*0.28:-1[nm];[0][nm]overlay=20:main_h-overlay_h-20",
+                "-preset", "ultrafast", "-crf", "28", "-codec:a", "copy", tmp
+            ]
+            subprocess.run(cmd2, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=120)
+            if os.path.exists(tmp):
+                os.remove(output_file)
+                os.rename(tmp, output_file)
+            return True
+        return False
     except Exception as e:
         print("Watermark error:", e)
         return False
@@ -106,7 +114,6 @@ def download_video(url, chat_id, is_mp3=False):
         cmd = ["yt-dlp", "-x", "--audio-format", "mp3", "--audio-quality", "0",
                "-o", f"dl_{uid}.mp3", "--no-playlist", "--max-filesize", "200M", url]
     else:
-        # جودة عالية لحد 1080p + لحد 200 ميجا
         cmd = ["yt-dlp", "-f", "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
                "-o", f"dl_{uid}.%(ext)s", "--no-playlist", "--max-filesize", "200M",
                "--merge-output-format", "mp4", url]
@@ -141,7 +148,6 @@ def handle_text(m):
         return
     bot.send_message(m.chat.id, "📥 ابعتلي لينك الفيديو على طول 👇\n\nمثال:\nhttps://www.tiktok.com/...\nhttps://www.instagram.com/reel/...", reply_markup=main_kb())
 
-# ===== هاندلر واحد بس - ده اللي كان بايظ عندك =====
 @bot.callback_query_handler(func=lambda c: True)
 def callbacks(c):
     uid = c.from_user.id
@@ -154,7 +160,7 @@ def callbacks(c):
         if d == "back":
             safe_edit(c, f"✦ بوت التحميل - عدي عمرو ✦\n\nابعت لينك الفيديو وانا هحملهولك 👇{fmt_rights()}", main_kb()); return
         if d == "how":
-            safe_edit(c, f"📥 ازاي تحمل؟\n\n1️⃣ روح تيك توك / انستا / يوتيوب\n2️⃣ دوس مشاركة -> نسخ الرابط\n3️⃣ تعال هنا وابعت اللينك\n4️⃣ اختار فيديو ولا اغنية\n5️⃣ استنى وهيجيلك باسمي 👑\n\n💡 جرب دلوقتي - ابعت اي لينك{fmt_rights()}", main_kb()); return
+            safe_edit(c, f"📥 ازاي تحمل؟\n\n1️⃣ روح تيك توك / انستا / يوتيوب\n2️⃣ دوس مشاركة -> نسخ الرابط\n3️⃣ تعال هنا وابعت اللينك\n4️⃣ اختار فيديو ولا اغنية\n5️⃣ استنى وهيجيلك الفيديو 👑\n\n💡 جرب دلوقتي - ابعت اي لينك{fmt_rights()}", main_kb()); return
         if d == "send_link":
             safe_edit(c, f"📥 ابعت اللينك دلوقتي\n\nانسخ لينك الفيديو وابعته هنا 👇", main_kb()); return
         if d == "tiktok":
@@ -172,11 +178,10 @@ def callbacks(c):
         if d == "rights":
             safe_edit(c, f"👑 حقوق عدي\n\n👑 صنع بواسطة عدي عمرو\n👑 جميع الحقوق محفوظة لـ عدي عمرو © 2026\n👑 ممنوع السرقة او النسخ", main_kb()); return
 
-        # تحميل فيديو ولا اغنية - هنا بس
         if d.startswith("dl_"):
             parts = d.split("_")
             if len(parts) != 3: return
-            mode = parts[1]  # video او mp3
+            mode = parts[1]
             key = parts[2]
             url = pending_links.get(key)
             if not url:
@@ -204,7 +209,7 @@ def do_download(m, url, is_mp3=False, is_from_button=False):
         pending_links[key] = url
         kb = InlineKeyboardMarkup(row_width=2)
         kb.add(
-            InlineKeyboardButton("🎬 فيديو MP4 - باسمي", callback_data=f"dl_video_{key}"),
+            InlineKeyboardButton("🎬 فيديو MP4", callback_data=f"dl_video_{key}"),
             InlineKeyboardButton("🎵 اغنية MP3", callback_data=f"dl_mp3_{key}"),
         )
         bot.send_message(chat_id, f"📥 لقيت اللينك!\n\nتحب احملهولك ايه؟ 👇\n\n{url[:80]}...", reply_markup=kb)
@@ -212,8 +217,7 @@ def do_download(m, url, is_mp3=False, is_from_button=False):
 
     msg = bot.send_message(chat_id, f"⏳ بحمل دلوقتي... استنى 10-20 ثانية 📥")
     try:
-        real_url = pending_links.get(url, url) if url in pending_links else url
-        file_path, err = download_video(real_url, chat_id, is_mp3=is_mp3)
+        file_path, err = download_video(url, chat_id, is_mp3=is_mp3)
         if file_path and os.path.exists(file_path):
             st["count"] += 1
             size = os.path.getsize(file_path) / 1024 / 1024
@@ -227,17 +231,16 @@ def do_download(m, url, is_mp3=False, is_from_button=False):
                 with open(file_path, "rb") as f:
                     bot.send_audio(chat_id, f, caption=f"🎵 اغنيتك جاهزة!\n\n📥 حملت: {st['count']} حاجة\n{fmt_rights()}", reply_markup=after_kb())
             else:
-                # --- حفر اسمك وحقوقك جوه الفيديو ---
-                try: bot.edit_message_text("✨ جاري حفر اسم عدي عمرو على الفيديو... 👑", chat_id, msg.message_id)
-                except: pass
+                # --- حفر في السر - مفاجأة 👑 مش بنقول للناس ---
                 final_path = "final_" + file_path
                 if add_watermark(file_path, final_path):
                     try: os.remove(file_path)
                     except: pass
                     file_path = final_path
+                # لو الحفر فشل - بنبعت الاصلي عادي من غير ما نعلق
 
                 with open(file_path, "rb") as f:
-                    bot.send_video(chat_id, f, caption=f"✅ الفيديو جاهز! من غير علامة مائية 🔥\n\n✦ عدي عمرو ✦\n📥 حملت: {st['count']} حاجة\n{fmt_rights()}", reply_markup=after_kb(), supports_streaming=True)
+                    bot.send_video(chat_id, f, caption=f"✅ الفيديو جاهز! 🔥\n\n✦ عدي عمرو ✦\n📥 حملت: {st['count']} حاجة\n{fmt_rights()}", reply_markup=after_kb(), supports_streaming=True)
             try: os.remove(file_path)
             except: pass
             try: bot.delete_message(chat_id, msg.message_id)
