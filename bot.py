@@ -7,7 +7,7 @@ import random, time, threading, json, os
 import telebot
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 
-TOKEN = "حط_التوكن_بتاعك_هنا"
+TOKEN = os.environ.get("BOT_TOKEN", "").strip()
 bot = telebot.TeleBot(TOKEN)
 
 KING_ID = 8188263997  # 👑 الملك - انت
