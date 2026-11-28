@@ -1,308 +1,267 @@
-# -*- coding: utf-8 -*-
-# 📥 بوت التحميل - عدي عمرو
-# 👑 حقوق عدي - جميع الحقوق محفوظة © 2026
-# بوت بيحمل اي فيديو من اي موقع
-
-import os, time, re, subprocess, traceback, uuid, glob, threading
-import telebot
-from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
-from flask import Flask
-from PIL import Image, ImageDraw, ImageFont
-
-# --- سيرفر وهمي عشان Render ميفصلش ---
-app = Flask(__name__)
-@app.route('/')
-def home(): return "Bot Adi is Alive"
-threading.Thread(target=lambda: app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000))), daemon=True).start()
+import os, json, asyncio, subprocess
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, CallbackQueryHandler, ChatMemberHandler, filters, ContextTypes
+import yt_dlp
 
 TOKEN = os.environ.get("BOT_TOKEN")
-bot = telebot.TeleBot(TOKEN)
+DEV_LINK = "https://t.me/TRAN_5"
+DEV_USERNAME = "@TRAN_5"
+CHANNEL_ID = "@yuoe80"
+CHANNEL_LINK = "https://t.me/yuoe80"
+BOT_LINK = "https://t.me/oday500310bot"
 
-DEV_LINK = "https://t.me/yuoe80"
-DEV_USERNAME = "@yuoe80"
-RIGHTS = "👑 حقوق عدي - جميع الحقوق محفوظة © 2026\n👑 صنع بواسطة عدي عمرو - ممنوع السرقة"
-def fmt_rights():
-    return f"\n\n━━━━━━━━━━━━━━\n{RIGHTS}\n📩 تواصل مع المطور: {DEV_USERNAME}\n📢 قناة المطور: {DEV_LINK}"
+# ===== الاونر - انت =====
+OWNER_ID = 8188263997
+BOT_ENABLED = True
 
-pending_links = {}
-user_stats = {}
-MAX_SIZE = 200 * 1024 * 1024
+BANNED_FILE = "banned.json"
+USERS_FILE = "users.json"
 
-def get_stats(uid):
-    if uid not in user_stats: user_stats[uid] = {"count": 0}
-    return user_stats[uid]
+try:
+    with open(BANNED_FILE) as f: BANNED = set(json.load(f))
+except: BANNED = set()
+try:
+    with open(USERS_FILE) as f: KNOWN_USERS = set(json.load(f))
+except: KNOWN_USERS = set()
 
-# ===== بيدعم اي لينك - اي موقع =====
-def is_link(text):
-    text = text.lower()
-    if "http" not in text:
-        return False
-    # اي لينك فيه نقطة و / - يعتبر فيديو
-    # تيك توك - انستا - يوتيوب - فيس - تويتر - اي موقع تاني
-    return any(x in text for x in [
-        "tiktok.com", "vt.tiktok.com", "vm.tiktok.com",
-        "instagram.com", "instagr.am",
-        "youtube.com", "youtu.be", "music.youtube.com",
-        "facebook.com", "fb.watch", "fb.gg",
-        "twitter.com", "x.com",
-        "snapchat.com", "pinterest.com", "reddit.com",
-        "dailymotion.com", "vimeo.com", "twitch.tv",
-        "t.me", "telegram", "likee", "kwai", "capcut",
-        ".com", ".net", ".io", ".co", ".me", ".tv", ".cc"
-    ])
+def save_json(file, data):
+    with open(file, "w") as f: json.dump(list(data), f)
+def ban_user(uid):
+    BANNED.add(uid); save_json(BANNED_FILE, BANNED)
 
-def extract_link(text):
-    m = re.search(r'https?://\S+', text)
-    return m.group(0).rstrip(')]}.,!') if m else text.strip()
-
-# ===== واجهة فخمة =====
-def main_kb():
-    kb = InlineKeyboardMarkup(row_width=2)
-    kb.add(
-        InlineKeyboardButton("📥 ازاي احمل؟", callback_data="how"),
-        InlineKeyboardButton("🎵 تيك توك", callback_data="tiktok"),
-        InlineKeyboardButton("📸 انستا", callback_data="insta"),
-        InlineKeyboardButton("▶️ يوتيوب", callback_data="youtube"),
-        InlineKeyboardButton("📘 فيس بوك", callback_data="facebook"),
-        InlineKeyboardButton("🎵 اغنية MP3", callback_data="mp3"),
-        InlineKeyboardButton("🌐 اي موقع تاني", callback_data="anym"),
-        InlineKeyboardButton("📊 احصائياتي", callback_data="stats"),
-        InlineKeyboardButton("👑 حقوق عدي", callback_data="rights"),
-        InlineKeyboardButton("📩 تواصل مع المطور", url=DEV_LINK),
-        InlineKeyboardButton("📢 قناة المطور", url=DEV_LINK),
-    )
-    return kb
-
-def after_kb():
-    kb = InlineKeyboardMarkup(row_width=2)
-    kb.add(
-        InlineKeyboardButton("📥 حمل لينك تاني", callback_data="send_link"),
-        InlineKeyboardButton("🎵 تيك توك", callback_data="tiktok"),
-        InlineKeyboardButton("📸 انستا", callback_data="insta"),
-        InlineKeyboardButton("▶️ يوتيوب", callback_data="youtube"),
-        InlineKeyboardButton("🏠 القايمة الرئيسية", callback_data="back"),
-        InlineKeyboardButton("📩 تواصل مع المطور", url=DEV_LINK),
-        InlineKeyboardButton("📢 قناة المطور", url=DEV_LINK),
-    )
-    return kb
-
-def safe_edit(c, text, kb=None):
+async def is_subscribed(context, user_id):
     try:
-        bot.edit_message_text(text, c.message.chat.id, c.message.message_id, reply_markup=kb)
-    except:
-        try: bot.send_message(c.message.chat.id, text, reply_markup=kb)
-        except: pass
+        m = await context.bot.get_chat_member(chat_id=CHANNEL_ID, user_id=user_id)
+        return m.status in ["member", "administrator", "creator"]
+    except: return False
 
-# ===== العلامة المائية - شعار + اسم على كل فيديو =====
-def add_watermark(input_file, output_file):
+async def log_to_channel(context, user, url, platform):
     try:
-        if os.path.exists("logo.png"):
-            # 1 - الشعار فوق يمين - صغير
-            cmd = [
-                "ffmpeg", "-y", "-i", input_file, "-i", "logo.png",
-                "-filter_complex", "[1]scale=140:-1[logo];[0][logo]overlay=main_w-overlay_w-20:20",
-                "-preset", "ultrafast", "-crf", "28", "-codec:a", "copy", output_file
-            ]
-            subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=120)
-            if not os.path.exists(output_file):
-                return False
+        name = user.first_name or "بدون اسم"
+        username = f"@{user.username}" if user.username else "بدون يوزر"
+        await context.bot.send_message(chat_id=CHANNEL_ID,
+            text=f"🔥 <b>عضو جديد جرب البوت!</b>\n\n👤 الاسم: {name}\n🆔 اليوزر: {username}\n🆔 الايدي: <code>{user.id}</code>\n🎬 حمل من: {platform}\n🔗 اللينك: {url}",
+            parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🚀 جرب البوت", url=BOT_LINK)]]))
+    except: pass
 
-            # 2 - اسمك تحت شمال - صغير وشيك
-            img = Image.new('RGBA', (500, 80), (0, 0, 0, 0))
-            draw = ImageDraw.Draw(img)
-            try:
-                font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 34)
-            except:
-                font = ImageFont.load_default()
-            text = "Adi Amr - عدي عمرو"
-            for dx, dy in [(3,3),(3,0),(0,3)]:
-                draw.text((dx, dy), text, font=font, fill=(0,0,0,200))
-            draw.text((0, 0), text, font=font, fill=(255,255,255,230))
-            img.save("name.png")
+# ===== زرار القايمة الرئيسية =====
+def main_menu(user_id):
+    buttons = [
+        [InlineKeyboardButton("📢 اشترك في القناة", url=CHANNEL_LINK)],
+        [InlineKeyboardButton("📩 تواصل مع المطور", url=DEV_LINK)],
+        [InlineKeyboardButton("📢 قناة المطور", url=CHANNEL_LINK)],
+        [InlineKeyboardButton("ℹ️ ازاي استخدم البوت؟", callback_data="how_to")],
+    ]
+    # زرار الاونر بيظهر ليك انت بس
+    if user_id == OWNER_ID:
+        buttons.append([InlineKeyboardButton("👑 لوحة تحكم الاونر", callback_data="open_admin")])
+    return InlineKeyboardMarkup(buttons)
 
-            tmp = "tmp_" + output_file
-            cmd2 = [
-                "ffmpeg", "-y", "-i", output_file, "-i", "name.png",
-                "-filter_complex", "[1]scale=iw*0.28:-1[nm];[0][nm]overlay=20:main_h-overlay_h-20",
-                "-preset", "ultrafast", "-crf", "28", "-codec:a", "copy", tmp
-            ]
-            subprocess.run(cmd2, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=120)
-            if os.path.exists(tmp):
-                os.remove(output_file)
-                os.rename(tmp, output_file)
-            return True
-        return False
-    except Exception as e:
-        print("Watermark error:", e)
-        return False
-
-def download_video(url, chat_id, is_mp3=False):
-    uid = str(uuid.uuid4())[:8]
-    # لو اللينك مختصر زي vt.tiktok - yt-dlp بيفكه لوحده
-    if is_mp3:
-        cmd = ["yt-dlp", "-x", "--audio-format", "mp3", "--audio-quality", "0",
-               "-o", f"dl_{uid}.mp3", "--no-playlist", "--max-filesize", "200M",
-               "--user-agent", "Mozilla/5.0", url]
-    else:
-        # بيحمل اي فيديو - افضل جودة لحد 1080p
-        cmd = ["yt-dlp", "-f", "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best/best",
-               "-o", f"dl_{uid}.%(ext)s", "--no-playlist", "--max-filesize", "200M",
-               "--merge-output-format", "mp4",
-               "--user-agent", "Mozilla/5.0",
-               "--no-warnings", url]
-    result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
-    files = glob.glob(f"dl_{uid}.*")
-    # لو ملقاش فيديو - جرب صيغة عامة لأي موقع
-    if not files:
-        cmd2 = ["yt-dlp", "-o", f"dl_{uid}.%(ext)s", "--no-playlist", "--max-filesize", "200M", url]
-        result = subprocess.run(cmd2, capture_output=True, text=True, timeout=300)
-        files = glob.glob(f"dl_{uid}.*")
-    return files[0] if files else None, result.stderr[:500] if result.stderr else ""
-
-@bot.message_handler(commands=['start'])
-def start(m):
-    st = get_stats(m.from_user.id)
-    bot.send_message(m.chat.id,
-        f"✦ ━━━━━━━━━━━━━ ✦\n"
-        f"  👋 اهلا يا {m.from_user.first_name}\n"
-        f"  🚀 بوت التحميل - عدي عمرو\n"
-        f"✦ ━━━━━━━━━━━━━ ✦\n\n"
-        f"✅ تيك توك - عادي ومختصر vt.tiktok.com\n"
-        f"✅ انستا - ريلز وستوري وبوست\n"
-        f"✅ يوتيوب - فيديو وشورتس\n"
-        f"✅ فيس بوك - فيديو وريلز\n"
-        f"✅ تويتر / سناب / بنترست / ريديت\n"
-        f"✅ 🌐 اي موقع تاني فيه فيديو!\n"
-        f"✅ اغنية MP3 من اي لينك\n"
-        f"✅ جودة عالية لحد 1080p - حتى 200 MB\n\n"
-        f"📊 حملت: {st['count']} فيديو\n"
-        f"👇 دوس على اي زرار، او ابعت اي لينك على طول!"
-        f"{fmt_rights()}",
-        reply_markup=main_kb())
-
-@bot.message_handler(content_types=['text'])
-def handle_text(m):
-    text = m.text.strip()
-    if is_link(text):
-        link = extract_link(text)
-        do_download(m, link, False)
+# ===== /start - كله ازرار =====
+async def start(update, context):
+    user = update.effective_user
+    if user.id in BANNED:
+        await update.message.reply_text("🚫 انت محظور من البوت للأبد لانك خرجت من القناة!",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("📩 كلم المطور لفك الحظر", url=DEV_LINK)]]))
         return
-    bot.send_message(m.chat.id, "📥 ابعتلي اي لينك فيديو على طول 👇\n\nمثال:\nhttps://vt.tiktok.com/ZSsUjdphu/\nhttps://www.tiktok.com/...\nhttps://www.instagram.com/reel/...\nhttps://youtu.be/...", reply_markup=main_kb())
-
-@bot.callback_query_handler(func=lambda c: True)
-def callbacks(c):
-    uid = c.from_user.id
-    try:
-        st = get_stats(uid)
-        d = c.data or ""
-        try: bot.answer_callback_query(c.id)
-        except: pass
-
-        if d == "back":
-            safe_edit(c, f"✦ بوت التحميل - عدي عمرو ✦\n\nابعت اي لينك فيديو وانا هحملهولك 👇{fmt_rights()}", main_kb()); return
-        if d == "how":
-            safe_edit(c, f"📥 ازاي تحمل؟\n\n1️⃣ روح اي موقع - تيك توك / انستا / يوتيوب / اي موقع\n2️⃣ دوس مشاركة -> نسخ الرابط\n3️⃣ تعال هنا وابعت اللينك\n4️⃣ اختار فيديو ولا اغنية\n5️⃣ استنى وهيجيلك الفيديو 👑\n\n💡 جرب دلوقتي - ابعت اي لينك{fmt_rights()}", main_kb()); return
-        if d == "send_link":
-            safe_edit(c, f"📥 ابعت اللينك دلوقتي\n\nانسخ لينك الفيديو وابعته هنا 👇", main_kb()); return
-        if d == "tiktok":
-            safe_edit(c, f"🎵 تحميل تيك توك\n\nابعت لينك فيديو التيك توك - عادي او مختصر vt.tiktok.com\nوانا هجيبهولك من غير علامة مائية 💧\n\n👇 ابعت اللينك", main_kb()); return
-        if d == "insta":
-            safe_edit(c, f"📸 تحميل انستا\n\nابعت لينك الريلز او البوست او الستوري\nوانا هحملهولك 👇", main_kb()); return
-        if d == "youtube":
-            safe_edit(c, f"▶️ تحميل يوتيوب\n\nابعت لينك فيديو يوتيوب او شورتس\nوانا هحملهولك بجودة عالية 👇", main_kb()); return
-        if d == "facebook":
-            safe_edit(c, f"📘 تحميل فيس بوك\n\nابعت لينك فيديو الفيس او الريلز\nوانا هحملهولك 👇", main_kb()); return
-        if d == "anym":
-            safe_edit(c, f"🌐 تحميل من اي موقع\n\nالبوت بيحمل من اي موقع فيه فيديو:\nتيك توك - انستا - يوتيوب - فيس - تويتر - سناب - بنترست - ريديت - فيميو - واي موقع تاني\n\n👇 ابعت اي لينك", main_kb()); return
-        if d == "mp3":
-            safe_edit(c, f"🎵 تحميل اغنية MP3\n\nابعت اي لينك وانا هحولهولك اغنية MP3\n\n👇 ابعت اللينك", main_kb()); return
-        if d == "stats":
-            safe_edit(c, f"📊 احصائياتك\n\n👤 {c.from_user.first_name}\n📥 حملت: {st['count']} فيديو{fmt_rights()}", main_kb()); return
-        if d == "rights":
-            safe_edit(c, f"👑 حقوق عدي\n\n👑 صنع بواسطة عدي عمرو\n👑 جميع الحقوق محفوظة لـ عدي عمرو © 2026\n👑 ممنوع السرقة او النسخ\n\n📩 تواصل: {DEV_USERNAME}\n📢 قناة: {DEV_LINK}", main_kb()); return
-
-        if d.startswith("dl_"):
-            parts = d.split("_")
-            if len(parts) != 3: return
-            mode = parts[1]
-            key = parts[2]
-            url = pending_links.get(key)
-            if not url:
-                bot.send_message(c.message.chat.id, "❌ اللينك ده قديم، ابعت لينك جديد", reply_markup=main_kb()); return
-            try: bot.delete_message(c.message.chat.id, c.message.message_id)
-            except: pass
-            class FakeMsg: pass
-            fake = FakeMsg()
-            fake.chat = c.message.chat
-            fake.from_user = c.from_user
-            do_download(fake, url, mode == "mp3", is_from_button=True)
-            return
-
-        safe_edit(c, f"📥 بوت التحميل - عدي عمرو{fmt_rights()}", main_kb())
-    except Exception as e:
-        print(e); traceback.print_exc()
-
-def do_download(m, url, is_mp3=False, is_from_button=False):
-    chat_id = m.chat.id
-    uid = m.from_user.id
-    st = get_stats(uid)
-
-    if not is_from_button and not is_mp3:
-        key = str(uuid.uuid4())[:8]
-        pending_links[key] = url
-        kb = InlineKeyboardMarkup(row_width=2)
-        kb.add(
-            InlineKeyboardButton("🎬 فيديو MP4", callback_data=f"dl_video_{key}"),
-            InlineKeyboardButton("🎵 اغنية MP3", callback_data=f"dl_mp3_{key}"),
-        )
-        bot.send_message(chat_id, f"📥 لقيت اللينك!\n\nتحب احملهولك ايه؟ 👇\n\n{url[:80]}...", reply_markup=kb)
+    if not BOT_ENABLED and user.id != OWNER_ID:
+        await update.message.reply_text("🔴 البوت مطفي دلوقتي من المطور @TRAN_5\nجرب بعد شوية ⭐",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("📢 تابع القناة", url=CHANNEL_LINK)]]))
         return
+    if not await is_subscribed(context, user.id):
+        await update.message.reply_text("⚠️ <b>لازم تشترك في القناة الاول عشان البوت يشتغل!</b>\n\nاشترك ودوس تحقق 👇",
+            parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("📢 اشترك في القناة", url=CHANNEL_LINK)],
+                [InlineKeyboardButton("✅ انا اشتركت - تحقق", callback_data="check_sub")],
+                [InlineKeyboardButton("📩 المطور", url=DEV_LINK)]
+            ]))
+        return
+    KNOWN_USERS.add(user.id); save_json(USERS_FILE, KNOWN_USERS)
+    await update.message.reply_text(f"اهلا بيك يا {user.first_name} 👑🔥\n\nابعت لينك فيديو من TikTok / Instagram / YouTube / Facebook / X\nوهحملهولك على طول 😉\n\nاختار من تحت 👇",
+        reply_markup=main_menu(user.id))
 
-    msg = bot.send_message(chat_id, f"⏳ بحمل دلوقتي... استنى 10-20 ثانية 📥")
-    try:
-        file_path, err = download_video(url, chat_id, is_mp3=is_mp3)
-        if file_path and os.path.exists(file_path):
-            st["count"] += 1
-            size = os.path.getsize(file_path) / 1024 / 1024
-            if size > 200:
-                bot.send_message(chat_id, f"❌ الفيديو كبير اوي ({size:.1f} MB) - الحد الاقصى 200 MB", reply_markup=after_kb())
-                try: os.remove(file_path)
-                except: pass
-                return
+# ===== كل الازرار هنا =====
+async def all_buttons(update, context):
+    global BOT_ENABLED
+    query = update.callback_query
+    user_id = query.from_user.id
+    data = query.data
+    await query.answer()
 
-            if is_mp3:
-                with open(file_path, "rb") as f:
-                    bot.send_audio(chat_id, f, caption=f"🎵 اغنيتك جاهزة!\n\n✦ عدي عمرو ✦\n📩 تواصل مع المطور: {DEV_USERNAME}\n📢 قناة المطور: {DEV_LINK}\n\n📥 حملت: {st['count']} حاجة\n{fmt_rights()}", reply_markup=after_kb())
-            else:
-                # --- حفر في السر - مفاجأة 👑 ---
-                final_path = "final_" + file_path
-                if add_watermark(file_path, final_path):
-                    try: os.remove(file_path)
-                    except: pass
-                    file_path = final_path
-
-                with open(file_path, "rb") as f:
-                    bot.send_video(chat_id, f, caption=f"✅ الفيديو جاهز! 🔥\n\n✦ عدي عمرو ✦\n👑 جميع الحقوق محفوظة لـ عدي عمرو\n📩 تواصل مع المطور: {DEV_USERNAME}\n📢 قناة المطور: {DEV_LINK}\n\n📥 حملت: {st['count']} حاجة\n{fmt_rights()}", reply_markup=after_kb(), supports_streaming=True)
-            try: os.remove(file_path)
-            except: pass
-            try: bot.delete_message(chat_id, msg.message_id)
-            except: pass
+    # --- تحقق من الاشتراك ---
+    if data == "check_sub":
+        if user_id in BANNED:
+            await query.answer("🚫 انت محظور للأبد!", show_alert=True); return
+        if await is_subscribed(context, user_id):
+            KNOWN_USERS.add(user_id); save_json(USERS_FILE, KNOWN_USERS)
+            await query.edit_message_text("✅ تمام! انت مشترك، ابعت اللينك دلوقتي 👑🔥",
+                reply_markup=main_menu(user_id))
         else:
-            bot.edit_message_text(f"❌ معرفتش احمل اللينك ده\n\nممكن يكون:\n- الفيديو خاص / محذوف\n- الموقع طالب تسجيل دخول\n- اللينك غلط\n\nجرب لينك تاني 👇\n\nلو مش راضي يحمل خالص - كلم المطور: {DEV_USERNAME}{fmt_rights()}", chat_id, msg.message_id, reply_markup=after_kb())
-    except Exception as e:
-        print(f"download error: {e}")
-        traceback.print_exc()
-        try: bot.edit_message_text(f"❌ حصلت غلطة، جرب لينك تاني 👇{fmt_rights()}", chat_id, msg.message_id, reply_markup=after_kb())
+            await query.answer("❌ لسه مش مشترك! اشترك الاول", show_alert=True)
+        return
+
+    # --- ازاي استخدم البوت ---
+    if data == "how_to":
+        await query.edit_message_text("ℹ️ <b>ازاي تستخدم البوت؟</b>\n\n1️⃣ اشترك في القناة\n2️⃣ انسخ لينك الفيديو من TikTok / Insta / YouTube\n3️⃣ ابعته هنا\n4️⃣ هيجيلك الفيديو على طول بدون علامة مائية ✅\n\n📩 المطور: @TRAN_5",
+            parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("📢 اشترك في القناة", url=CHANNEL_LINK)],
+                [InlineKeyboardButton("🔙 رجوع", callback_data="back_home")]
+            ]))
+        return
+
+    if data == "back_home":
+        await query.edit_message_text(f"اهلا بيك 👑🔥\n\nابعت لينك الفيديو وهحملهولك على طول 😉",
+            reply_markup=main_menu(user_id))
+        return
+
+    # --- لوحة الاونر - انت بس ---
+    if data == "open_admin":
+        if user_id != OWNER_ID:
+            await query.answer("❌ مش ليك!", show_alert=True); return
+        status = "🟢 شغال" if BOT_ENABLED else "🔴 مطفي"
+        await query.edit_message_text(f"👑 <b>لوحة تحكم الاونر</b>\n\n🤖 حالة البوت: {status}\n👥 المستخدمين: {len(KNOWN_USERS)}\n🚫 المحظورين: {len(BANNED)}",
+            parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("⏸️ اطفي البوت", callback_data="bot_off")],
+                [InlineKeyboardButton("▶️ شغل البوت", callback_data="bot_on")],
+                [InlineKeyboardButton("📢 ابعت رسالة لكل الناس", callback_data="broadcast_start")],
+                [InlineKeyboardButton("📊 الاحصائيات", callback_data="stats")],
+                [InlineKeyboardButton("✅ فك حظر الكل", callback_data="unban_all")],
+                [InlineKeyboardButton("🔙 رجوع للقايمة", callback_data="back_home")]
+            ]))
+        return
+
+    # --- ازرار الاونر ---
+    if user_id != OWNER_ID and data in ["bot_off", "bot_on", "broadcast_start", "stats", "unban_all"]:
+        await query.answer("❌ مش ليك!", show_alert=True); return
+
+    if data == "bot_off":
+        BOT_ENABLED = False
+        await query.edit_message_text("🔴 البوت اتطفى! محدش هيعرف يستخدمه غيرك",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("▶️ شغل البوت", callback_data="bot_on")],
+                [InlineKeyboardButton("🔙 لوحة الاونر", callback_data="open_admin")]
+            ]))
+        await context.bot.send_message(chat_id=CHANNEL_ID, text="🔴 البوت مطفي دلوقتي للصيانة، هنرجع قريب ⭐")
+    elif data == "bot_on":
+        BOT_ENABLED = True
+        await query.edit_message_text("🟢 البوت اشتغل تاني! 🔥",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("⏸️ اطفي البوت", callback_data="bot_off")],
+                [InlineKeyboardButton("🔙 لوحة الاونر", callback_data="open_admin")]
+            ]))
+        await context.bot.send_message(chat_id=CHANNEL_ID, text="🟢 البوت اشتغل تاني! ابعتوا اللينكات 👑🔥")
+    elif data == "broadcast_start":
+        context.user_data["waiting_broadcast"] = True
+        await query.edit_message_text("📢 ابعت الرسالة اللي عايز تبعتها لكل الناس دلوقتي:\n(نص / صورة / فيديو / اي حاجة)\n\nودوس رجوع لو غيرت رايك",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ الغاء", callback_data="open_admin")]]))
+    elif data == "stats":
+        await query.edit_message_text(f"📊 الاحصائيات:\n\n👥 المستخدمين: {len(KNOWN_USERS)}\n🚫 المحظورين: {len(BANNED)}\n🤖 الحالة: {'🔴 مطفي' if not BOT_ENABLED else '🟢 شغال'}",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 لوحة الاونر", callback_data="open_admin")]]))
+    elif data == "unban_all":
+        BANNED.clear(); save_json(BANNED_FILE, BANNED)
+        await query.edit_message_text("✅ تم فك حظر الكل!",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 لوحة الاونر", callback_data="open_admin")]]))
+
+async def broadcast_handler(update, context):
+    if update.effective_user.id == OWNER_ID and context.user_data.get("waiting_broadcast"):
+        context.user_data["waiting_broadcast"] = False
+        sent, failed = 0, 0
+        await update.message.reply_text(f"⏳ جاري الارسال لـ {len(KNOWN_USERS)} واحد...",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("👑 لوحة الاونر", callback_data="open_admin")]]))
+        for uid in list(KNOWN_USERS):
+            try:
+                await context.bot.copy_message(chat_id=uid, from_chat_id=update.effective_chat.id, message_id=update.message.message_id)
+                sent += 1
+            except: failed += 1
+            await asyncio.sleep(0.05)
+        await update.message.reply_text(f"✅ تم!\n\n📩 وصلت لـ: {sent}\n❌ فشل: {failed}",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("👑 لوحة الاونر", callback_data="open_admin")]]))
+        return True
+    return False
+
+# ===== التحميل =====
+def get_platform(url):
+    if "tiktok" in url: return "TikTok"
+    if "instagram" in url: return "Instagram"
+    if "youtube" in url or "youtu.be" in url: return "YouTube"
+    if "facebook" in url or "fb." in url: return "Facebook"
+    if "twitter" in url or "x.com" in url: return "Twitter / X"
+    return "فيديو"
+
+def add_watermark(inp, out):
+    cmd = ["ffmpeg", "-y", "-i", inp, "-vf", "drawtext=text='Adi Amr | @TRAN_5':fontcolor=white:fontsize=28:box=1:boxcolor=black@0.6:boxborderw=8:x=w-tw-20:y=h-th-20", "-c:a", "copy", out]
+    subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    return out if os.path.exists(out) else inp
+
+async def handle_message(update, context):
+    user = update.effective_user
+    if await broadcast_handler(update, context): return
+    url = update.message.text.strip() if update.message.text else ""
+    if not url.startswith("http"):
+        await update.message.reply_text("❌ ابعت لينك فيديو صحيح!", reply_markup=main_menu(user.id)); return
+    if user.id in BANNED:
+        await update.message.reply_text("🚫 انت محظور من البوت للأبد لانك خرجت من القناة!",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("📩 كلم المطور", url=DEV_LINK)]])); return
+    if not BOT_ENABLED and user.id != OWNER_ID:
+        await update.message.reply_text("🔴 البوت مطفي دلوقتي من المطور @TRAN_5\nجرب بعد شوية ⭐",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("📢 تابع القناة", url=CHANNEL_LINK)]])); return
+    if not await is_subscribed(context, user.id):
+        if user.id in KNOWN_USERS:
+            ban_user(user.id)
+            await update.message.reply_text("👋 لقد خرجت من القناة مع سلامة ⭐\n\n🚫 تم حظرك من البوت للأبد!\nعشان ترجع كلم المطور: @TRAN_5",
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("📩 كلم المطور لفك الحظر", url=DEV_LINK)]]))
+            return
+        await update.message.reply_text("⚠️ <b>البوت مش هيشتغل!</b>\n\nانت مش مشترك في القناة\nاشترك الاول 👇", parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("📢 اشترك في القناة", url=CHANNEL_LINK)],[InlineKeyboardButton("✅ انا اشتركت - تحقق", callback_data="check_sub")]]))
+        return
+    KNOWN_USERS.add(user.id); save_json(USERS_FILE, KNOWN_USERS)
+    platform = get_platform(url)
+    msg = await update.message.reply_text("⏳ جاري التحميل... 🔥")
+    try:
+        await log_to_channel(context, user, url, platform)
+        os.makedirs("downloads", exist_ok=True)
+        ydl_opts = {'format': 'best[ext=mp4]/best', 'outtmpl': 'downloads/%(id)s.%(ext)s', 'quiet': True}
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=True)
+            file_path = ydl.prepare_filename(info)
+        final_file = add_watermark(file_path, file_path.replace(".mp4", "_wm.mp4"))
+        await update.message.reply_video(video=open(final_file, 'rb'),
+            caption=f"✅ تم التحميل بنجاح\n\n📩 المطور: {DEV_USERNAME}\n📢 القناة: {CHANNEL_LINK}\n\n🔗 رابط الفيديو الأصلي: {url}",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("📩 تواصل مع المطور", url=DEV_LINK)],
+                [InlineKeyboardButton("📢 قناة المطور", url=CHANNEL_LINK)],
+                [InlineKeyboardButton("🔄 حمل فيديو تاني", callback_data="back_home")]
+            ]))
+        await msg.delete()
+        try: os.remove(file_path); os.remove(final_file)
         except: pass
+    except Exception as e:
+        print(e); await msg.edit_text(f"❌ حصل خطأ!\nكلم المطور: {DEV_USERNAME}",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("📩 المطور", url=DEV_LINK)]]))
+
+async def on_leave(update, context):
+    try:
+        member = update.chat_member
+        if member.chat.username != "yuoe80": return
+        if member.new_chat_member.status in ["left", "kicked"]:
+            user = member.from_user; ban_user(user.id)
+            try: await context.bot.send_message(chat_id=user.id, text="👋 لقد خرجت من القناة مع سلامة ⭐\n\n🚫 تم حظرك من البوت للأبد!\nلو عايز ترجع كلم المطور: @TRAN_5",
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("📩 كلم المطور", url=DEV_LINK)]]))
+            except: pass
+            await context.bot.send_message(chat_id=CHANNEL_ID, text=f"👋 واحد خرج من القناة واتحظر! 🚫\n👤 {user.first_name} - @{user.username or 'بدون يوزر'}")
+    except Exception as e: print(e)
+
+def main():
+    app = ApplicationBuilder().token(TOKEN).build()
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CallbackQueryHandler(all_buttons))  # كله ازرار من هنا
+    app.add_handler(ChatMemberHandler(on_leave, ChatMemberHandler.CHAT_MEMBER))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    print("Bot is running..."); app.run_polling()
 
 if __name__ == "__main__":
-    print("Download Bot Adi is running... 📥")
-    try: bot.delete_webhook(drop_pending_updates=True)
-    except: pass
-    time.sleep(2)
-    while True:
-        try:
-            bot.infinity_polling(skip_pending=True, timeout=60, long_polling_timeout=60)
-            break
-        except Exception as e:
-            print(f"retry: {e}"); time.sleep(10)
+    main()
