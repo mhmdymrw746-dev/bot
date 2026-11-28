@@ -1,6 +1,7 @@
-import os, json, asyncio, subprocess
+import os, json, asyncio, subprocess, threading
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, CallbackQueryHandler, ChatMemberHandler, filters, ContextTypes
+from flask import Flask
 import yt_dlp
 
 TOKEN = os.environ.get("BOT_TOKEN")
@@ -45,7 +46,6 @@ async def log_to_channel(context, user, url, platform):
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🚀 جرب البوت", url=BOT_LINK)]]))
     except: pass
 
-# ===== زرار القايمة الرئيسية =====
 def main_menu(user_id):
     buttons = [
         [InlineKeyboardButton("📢 اشترك في القناة", url=CHANNEL_LINK)],
@@ -53,12 +53,10 @@ def main_menu(user_id):
         [InlineKeyboardButton("📢 قناة المطور", url=CHANNEL_LINK)],
         [InlineKeyboardButton("ℹ️ ازاي استخدم البوت؟", callback_data="how_to")],
     ]
-    # زرار الاونر بيظهر ليك انت بس
     if user_id == OWNER_ID:
         buttons.append([InlineKeyboardButton("👑 لوحة تحكم الاونر", callback_data="open_admin")])
     return InlineKeyboardMarkup(buttons)
 
-# ===== /start - كله ازرار =====
 async def start(update, context):
     user = update.effective_user
     if user.id in BANNED:
@@ -82,7 +80,6 @@ async def start(update, context):
     await update.message.reply_text(f"اهلا بيك يا {user.first_name} 👑🔥\n\nابعت لينك فيديو من TikTok / Instagram / YouTube / Facebook / X\nوهحملهولك على طول 😉\n\nاختار من تحت 👇",
         reply_markup=main_menu(user.id))
 
-# ===== كل الازرار هنا =====
 async def all_buttons(update, context):
     global BOT_ENABLED
     query = update.callback_query
@@ -90,7 +87,6 @@ async def all_buttons(update, context):
     data = query.data
     await query.answer()
 
-    # --- تحقق من الاشتراك ---
     if data == "check_sub":
         if user_id in BANNED:
             await query.answer("🚫 انت محظور للأبد!", show_alert=True); return
@@ -102,7 +98,6 @@ async def all_buttons(update, context):
             await query.answer("❌ لسه مش مشترك! اشترك الاول", show_alert=True)
         return
 
-    # --- ازاي استخدم البوت ---
     if data == "how_to":
         await query.edit_message_text("ℹ️ <b>ازاي تستخدم البوت؟</b>\n\n1️⃣ اشترك في القناة\n2️⃣ انسخ لينك الفيديو من TikTok / Insta / YouTube\n3️⃣ ابعته هنا\n4️⃣ هيجيلك الفيديو على طول بدون علامة مائية ✅\n\n📩 المطور: @TRAN_5",
             parse_mode="HTML",
@@ -117,7 +112,6 @@ async def all_buttons(update, context):
             reply_markup=main_menu(user_id))
         return
 
-    # --- لوحة الاونر - انت بس ---
     if data == "open_admin":
         if user_id != OWNER_ID:
             await query.answer("❌ مش ليك!", show_alert=True); return
@@ -134,7 +128,6 @@ async def all_buttons(update, context):
             ]))
         return
 
-    # --- ازرار الاونر ---
     if user_id != OWNER_ID and data in ["bot_off", "bot_on", "broadcast_start", "stats", "unban_all"]:
         await query.answer("❌ مش ليك!", show_alert=True); return
 
@@ -156,7 +149,7 @@ async def all_buttons(update, context):
         await context.bot.send_message(chat_id=CHANNEL_ID, text="🟢 البوت اشتغل تاني! ابعتوا اللينكات 👑🔥")
     elif data == "broadcast_start":
         context.user_data["waiting_broadcast"] = True
-        await query.edit_message_text("📢 ابعت الرسالة اللي عايز تبعتها لكل الناس دلوقتي:\n(نص / صورة / فيديو / اي حاجة)\n\nودوس رجوع لو غيرت رايك",
+        await query.edit_message_text("📢 ابعت الرسالة اللي عايز تبعتها لكل الناس دلوقتي:\n(نص / صورة / فيديو / اي حاجة)",
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ الغاء", callback_data="open_admin")]]))
     elif data == "stats":
         await query.edit_message_text(f"📊 الاحصائيات:\n\n👥 المستخدمين: {len(KNOWN_USERS)}\n🚫 المحظورين: {len(BANNED)}\n🤖 الحالة: {'🔴 مطفي' if not BOT_ENABLED else '🟢 شغال'}",
@@ -183,7 +176,6 @@ async def broadcast_handler(update, context):
         return True
     return False
 
-# ===== التحميل =====
 def get_platform(url):
     if "tiktok" in url: return "TikTok"
     if "instagram" in url: return "Instagram"
@@ -255,13 +247,30 @@ async def on_leave(update, context):
             await context.bot.send_message(chat_id=CHANNEL_ID, text=f"👋 واحد خرج من القناة واتحظر! 🚫\n👤 {user.first_name} - @{user.username or 'بدون يوزر'}")
     except Exception as e: print(e)
 
+# ===== Flask عشان Render =====
+flask_app = Flask(__name__)
+
+@flask_app.route('/')
+def home():
+    return "Bot is Running 👑🔥 - Adi Amr | @TRAN_5"
+
+@flask_app.route('/health')
+def health():
+    return "OK"
+
+def run_flask():
+    port = int(os.environ.get("PORT", 10000))
+    flask_app.run(host="0.0.0.0", port=port)
+
 def main():
+    threading.Thread(target=run_flask, daemon=True).start()
     app = ApplicationBuilder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CallbackQueryHandler(all_buttons))  # كله ازرار من هنا
+    app.add_handler(CallbackQueryHandler(all_buttons))
     app.add_handler(ChatMemberHandler(on_leave, ChatMemberHandler.CHAT_MEMBER))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-    print("Bot is running..."); app.run_polling()
+    print("Bot is running...")
+    app.run_polling()
 
 if __name__ == "__main__":
     main()
